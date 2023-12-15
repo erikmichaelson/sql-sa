@@ -221,6 +221,21 @@ int main(int argc, char ** argv) {
                         }
         }
     }
+    const char * ddl = "(create_table (keyword_create) (keyword_table) (object_reference schema: (identifier)? name: (identifier)) @definition\
+                            (keyword_as) (create_query ((cte (identifier)) @cte_name)))";
+    TSQuery * ddl_q = ts_query_new(tree_sitter_sql(), ddl, strlen(ddl), &q_error_offset, &q_error);
+    ts_query_cursor_exec(cursor, ddl_q, ts_tree_root_node(tree));
+    while(ts_query_cursor_next_match(cursor, &cur_match)) {
+        for(int i = 0; i < cur_match.capture_count; i++) {
+            if(substrcmp(table_were_looking_for
+                        ,all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i].node)
+                        ,(ts_node_end_byte(cur_match.captures[i].node) - ts_node_start_byte(cur_match.captures[i].node)))) {
+                            printf("FOUND THE CORRECT DDL: %.*s\n"
+                                ,(ts_node_end_byte(cur_match.captures[i].node) - ts_node_start_byte(cur_match.captures[i].node))
+                                ,all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i].node));
+                        }
+        }
+    }
 
     free(table_names);
     ts_tree_delete(tree);
