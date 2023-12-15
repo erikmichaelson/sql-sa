@@ -65,11 +65,14 @@ highlight_downstreams(STC * columns) {
         }
     }
 }
+*/
 
 std::string * get_file_order() {
     std::string *ret = (std::string *)malloc(sizeof(std::string));
     // find FROM tables, JOINed tables
 
+    const char * q = "(relation ( (object_reference schema: (identifier)? table: (identifier) ) @reference))";
+    //TSQuery(source, strlen(source)
     // build adjacency matrix
     /*     Pulls from
           A B C D E F G
@@ -82,35 +85,49 @@ std::string * get_file_order() {
        F|-        -      |
        G|-          -    |
         ------------------
+    */
 
     return ret;
 }
-    */
 
-std::string open_sqls() {
+std::string open_sqls(std::string files) {
     std::string ret;
     // open all SQL files into a buffer. Hideously inefficient, but we're small atm
-    DIR* cwd = opendir(".");
-    while(struct dirent* e = readdir(cwd)) {
-        std::string a = std::string(e->d_name);
-        if(a.find(".sql") != std::string::npos) {
-            printf("Looking in 'sql' file %s\n", e->d_name);
-            std::ifstream fd;
-            fd.open(e->d_name);
-            std::string new_ret( (std::istreambuf_iterator<char>(fd) ),
-                                 (std::istreambuf_iterator<char>()    ) );
-            ret.append(new_ret);
-            fd.close();
+    if(files == "ALL") {
+        DIR* cwd = opendir(".");
+        while(struct dirent* e = readdir(cwd)) {
+            std::string a = std::string(e->d_name);
+            if(a.find(".sql") != std::string::npos) {
+                printf("Looking in 'sql' file %s\n", e->d_name);
+                std::ifstream fd;
+                fd.open(e->d_name);
+                std::string new_ret( (std::istreambuf_iterator<char>(fd) ),
+                                     (std::istreambuf_iterator<char>()    ) );
+                ret.append(new_ret);
+                fd.close();
+            }
         }
+    } else {
+        printf("Looking in 'sql' file %s\n", files.c_str());
+        std::ifstream fd;
+        fd.open(files);
+        std::string new_ret( (std::istreambuf_iterator<char>(fd) ),
+                             (std::istreambuf_iterator<char>()    ) );
+        ret.append(new_ret);
+        fd.close();
     }
     return ret;
 }
 
-int main() {
+int main(int argc, char ** argv) {
+    std::string files = "ALL";
+    if(argc > 1)
+        files = std::string(argv[1]);
+
     TSParser *parser = ts_parser_new();
     ts_parser_set_language(parser, tree_sitter_sql());
 
-    std::string all_sqls = open_sqls();
+    std::string all_sqls = open_sqls(files);
     TSTree * tree = ts_parser_parse_string(
         parser,
         NULL,
@@ -123,7 +140,7 @@ int main() {
     TSQueryCursor * cursor = ts_query_cursor_new();
     const char * q = "(relation ( ( object_reference schema: (identifier)? name: (identifier)) @reference))";
 
-    //printf("parsed root: %s", ts_node_string(ts_tree_root_node(tree)));
+    printf("parsed root: %s", ts_node_string(ts_tree_root_node(tree)));
     //printf("query : %s", q);
 
     uint32_t q_error_offset;
@@ -150,10 +167,11 @@ int main() {
             TSPoint end = ts_node_end_point(cur_match.captures[i].node);
             printf("[%2d:%-2d - %2d:%-2d] ", start.row, start.column, end.row, end.column);
             int len = start.column - end.column;
-            printf("id: %i, text: %.*s, capture: %s\n", cur_match.id,
-                            //node_to_string(all_sqls.c_str(), cur_match.captures[i].node),
+            printf("id: %i, context: %.*s references: %.*s, capture: %s\n", cur_match.id,
                             ts_node_end_byte(cur_match.captures[i].node) - ts_node_start_byte(cur_match.captures[i].node),
                             all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i].node),
+                            ts_node_end_byte(cur_match.captures[i+1].node) - ts_node_start_byte(cur_match.captures[i+1].node),
+                            all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i+1].node),
                             ts_node_string(cur_match.captures[i].node));
             const char * q;
             //snprintf(q, "insert into table_refs values (%i, %s);", start.column - end.column, all_sqls + start);
