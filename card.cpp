@@ -110,6 +110,18 @@ int substrcmp(const char * str1, const char * str2, uint32_t substrlen) {
     return 1;
 }
 
+// precondition: highlight_token_starts is sorted
+void print_highlights_to_term(std::string source, const TSNode * highlight_tokens, uint32_t n) {
+    int adj = 0;
+    for(int i = 0; i < n; i++) {
+        source.insert(ts_node_start_byte(highlight_tokens[i]) + adj, "\e[35m", 5);
+        adj += 5;
+        source.insert(ts_node_end_byte(highlight_tokens[i]) + adj, "\e[0m", 4);
+        adj += 4;
+    }
+    printf("%s", source.c_str());
+}
+
 std::string open_sqls(std::string files) {
     std::string ret;
     // open all SQL files into a buffer. Hideously inefficient, but we're small atm
@@ -160,7 +172,7 @@ int main(int argc, char ** argv) {
     TSQueryCursor * cursor = ts_query_cursor_new();
     const char * q = "(relation ( ( object_reference schema: (identifier)? name: (identifier)) @reference))";
 
-    printf("parsed root: %s\n", ts_node_string(ts_tree_root_node(tree)));
+    //printf("parsed root: %s\n", ts_node_string(ts_tree_root_node(tree)));
     //printf("query : %s", q);
 
     uint32_t q_error_offset;
@@ -218,21 +230,7 @@ int main(int argc, char ** argv) {
                             printf("FOUND THE CORRECT DDL: %.*s\n"
                                 ,(ts_node_end_byte(cur_match.captures[i].node) - ts_node_start_byte(cur_match.captures[i].node))
                                 ,all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i].node));
-                        }
-        }
-    }
-    const char * ddl = "(create_table (keyword_create) (keyword_table) (object_reference schema: (identifier)? name: (identifier)) @definition\
-                            (keyword_as) (create_query ((cte (identifier)) @cte_name)))";
-    TSQuery * ddl_q = ts_query_new(tree_sitter_sql(), ddl, strlen(ddl), &q_error_offset, &q_error);
-    ts_query_cursor_exec(cursor, ddl_q, ts_tree_root_node(tree));
-    while(ts_query_cursor_next_match(cursor, &cur_match)) {
-        for(int i = 0; i < cur_match.capture_count; i++) {
-            if(substrcmp(table_were_looking_for
-                        ,all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i].node)
-                        ,(ts_node_end_byte(cur_match.captures[i].node) - ts_node_start_byte(cur_match.captures[i].node)))) {
-                            printf("FOUND THE CORRECT DDL: %.*s\n"
-                                ,(ts_node_end_byte(cur_match.captures[i].node) - ts_node_start_byte(cur_match.captures[i].node))
-                                ,all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i].node));
+                            print_highlights_to_term(all_sqls, &cur_match.captures[i].node, 1);
                         }
         }
     }
