@@ -71,7 +71,7 @@ std::string * get_file_order() {
     std::string *ret = (std::string *)malloc(sizeof(std::string));
     // find FROM tables, JOINed tables
 
-    const char * q = "(relation ( (object_reference schema: (identifier)? table: (identifier) ) @reference))";
+    const char * q = "(relation @type ( (object_reference schema: (identifier)? table: (identifier) ) @reference))";
     //TSQuery(source, strlen(source)
     // build adjacency matrix
     /*     Pulls from
@@ -88,6 +88,26 @@ std::string * get_file_order() {
     */
 
     return ret;
+}
+
+/*
+    compares the first substrlen bytes of str2 to the totality of str1 (up to the \0)
+    str1 therefore needs a \0 at its end, str2 cannot. Maybe I should change this?
+    Since I assume this is being called with ts_node start and end bytes feeding the
+    arguments, I'm assuming these ranges won't have \0 in them (before the last character)
+    if they do, we're returning FALSE. You need to know the size of the strings you're passing
+    in here
+
+    returns 1 if true, 0 otherwise
+*/
+int substrcmp(const char * str1, const char * str2, uint32_t substrlen) {
+    int i = 0;
+    while(i < substrlen) {
+        if(str1[i] == '\0' || str2[i] == '\0' || str1[i] != str2[i])
+            return 0;
+        i++;
+    }
+    return 1;
 }
 
 std::string open_sqls(std::string files) {
@@ -140,7 +160,7 @@ int main(int argc, char ** argv) {
     TSQueryCursor * cursor = ts_query_cursor_new();
     const char * q = "(relation ( ( object_reference schema: (identifier)? name: (identifier)) @reference))";
 
-    printf("parsed root: %s", ts_node_string(ts_tree_root_node(tree)));
+    printf("parsed root: %s\n", ts_node_string(ts_tree_root_node(tree)));
     //printf("query : %s", q);
 
     uint32_t q_error_offset;
@@ -167,11 +187,11 @@ int main(int argc, char ** argv) {
             TSPoint end = ts_node_end_point(cur_match.captures[i].node);
             printf("[%2d:%-2d - %2d:%-2d] ", start.row, start.column, end.row, end.column);
             int len = start.column - end.column;
-            printf("id: %i, context: %.*s references: %.*s, capture: %s\n", cur_match.id,
+            printf("id: %i, references: %.*s, capture: %s\n", cur_match.id,
                             ts_node_end_byte(cur_match.captures[i].node) - ts_node_start_byte(cur_match.captures[i].node),
                             all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i].node),
-                            ts_node_end_byte(cur_match.captures[i+1].node) - ts_node_start_byte(cur_match.captures[i+1].node),
-                            all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i+1].node),
+                            //ts_node_end_byte(cur_match.captures[i+1].node) - ts_node_start_byte(cur_match.captures[i+1].node),
+                            //all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i+1].node),
                             ts_node_string(cur_match.captures[i].node));
             const char * q;
             //snprintf(q, "insert into table_refs values (%i, %s);", start.column - end.column, all_sqls + start);
@@ -185,6 +205,22 @@ int main(int argc, char ** argv) {
     duckdb::ColumnRef c = duckdb::ColumnRef(
     duckdb::Bind(
     */
+    const char * table_were_looking_for = "etl.snapshot";
+    const char * ddl = "(create_table (keyword_create) (keyword_table) (object_reference schema: (identifier)? name: (identifier)) @definition)";
+    // reusing error offsets and cursors from before
+    TSQuery * ddl_q = ts_query_new(tree_sitter_sql(), ddl, strlen(ddl), &q_error_offset, &q_error);
+    ts_query_cursor_exec(cursor, ddl_q, ts_tree_root_node(tree));
+    while(ts_query_cursor_next_match(cursor, &cur_match)) {
+        for(int i = 0; i < cur_match.capture_count; i++) {
+            if(substrcmp(table_were_looking_for
+                        ,all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i].node)
+                        ,(ts_node_end_byte(cur_match.captures[i].node) - ts_node_start_byte(cur_match.captures[i].node)))) {
+                            printf("FOUND THE CORRECT DDL: %.*s\n"
+                                ,(ts_node_end_byte(cur_match.captures[i].node) - ts_node_start_byte(cur_match.captures[i].node))
+                                ,all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i].node));
+                        }
+        }
+    }
 
     free(table_names);
     ts_tree_delete(tree);
