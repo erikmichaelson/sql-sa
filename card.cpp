@@ -112,6 +112,7 @@ int substrcmp(const char * str1, const char * str2, uint32_t substrlen) {
 
 // precondition: highlight_token_starts is sorted
 void print_highlights_to_term(std::string source, const TSNode * highlight_tokens, uint32_t n) {
+    printf("tokens: %i\n", n);
     int adj = 0;
     for(int i = 0; i < n; i++) {
         source.insert(ts_node_start_byte(highlight_tokens[i]) + adj, "\e[35m", 5);
@@ -153,6 +154,7 @@ std::string open_sqls(std::string files) {
 
 int main(int argc, char ** argv) {
     std::string files = "ALL";
+
     if(argc > 1)
         files = std::string(argv[1]);
 
@@ -160,33 +162,101 @@ int main(int argc, char ** argv) {
     ts_parser_set_language(parser, tree_sitter_sql());
 
     std::string all_sqls = open_sqls(files);
+    //printf("files opened\n");
     TSTree * tree = ts_parser_parse_string(
         parser,
         NULL,
         all_sqls.c_str(),
         strlen(all_sqls.c_str())
     );
-
-    std::cout << all_sqls;
-
+    //printf("trees built\n");
+    // reused for all queries in `main`
     TSQueryCursor * cursor = ts_query_cursor_new();
-    const char * q = "(relation ( ( object_reference schema: (identifier)? name: (identifier)) @reference))";
-
-    //printf("parsed root: %s\n", ts_node_string(ts_tree_root_node(tree)));
-    //printf("query : %s", q);
-
     uint32_t q_error_offset;
     TSQueryError q_error;
+    TSQueryMatch cur_match;
+    // this isn't reused
+    char * table;
+    TSQuery * cli_query;
+    char * q;
+    if(argc > 2) {
+        // show either DDL or references for a table
+        if(argc < 4 || strcmp(argv[2], "--show")) {
+            printf("used wrong"); // had a \n. REMOVED IT (yeah yeah)
+            exit(1);
+        }
+        if(!strcmp(argv[3], "ddl")) {
+            printf("DDL not implemented");
+            exit(1);
+        } else if (!strcmp(argv[3], "references")) {
+            if(argc != 6) { printf("used wrong"); exit(1); }
+            if(!strcmp(argv[4], "--to")) {
+                printf("in TO references\n");
+                // all places this table is referenced
+                table = (char *) malloc(strlen(argv[5]));
+                strcpy(table, argv[5]);
+                q = (char *) malloc(200);
+                sprintf(q, "(relation ((object_reference schema: (identifier) name: (identifier)) @reference ))", '?', table);
+                printf("to query: %s\n", q);
+                printf("the following tables reference %s\n", table);
+            } else if (!strcmp(argv[4], "--from")) {
+                printf("in TO references\n");
+                // all tables this table references 
+                table = (char *) malloc(strlen(argv[5]));
+                strcpy(table, argv[5]);
+                q = (char *) malloc(200);
+                sprintf(q, "(create_table (keyword_create) (keyword_table) (object_reference schema: (identifier)? name: (identifier))@create_name \
+                                (relation ((object_reference schema: (identifier)%c name: (identifier))@reference )) (#eq? @table_name \"%s\") )", '?', table);
+                printf("from query: %s\n", q);
+            }
+        }
+
+        cli_query = ts_query_new(tree_sitter_sql(), q, strlen(q), &q_error_offset, &q_error);
+        ts_query_cursor_exec(cursor, cli_query, ts_tree_root_node(tree));
+        int n = 0;
+        while(ts_query_cursor_next_match(cursor, &cur_match)) { n += cur_match.capture_count; }
+        printf("n: %i ", n);
+        // since TS predicates don't work we have to overallocate
+        TSNode * capture_nodes = (TSNode *) malloc(sizeof(TSNode) * n);
+        ts_query_cursor_exec(cursor, cli_query, ts_tree_root_node(tree));
+        // don't know why they have capture count if it's just straight wrong... :/
+        // this process is a massive computational waste
+        n = 0;
+        while(ts_query_cursor_next_match(cursor, &cur_match)) {
+            for(int i = 0; i < cur_match.capture_count; i++) {
+                if(substrcmp(table
+                            ,all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i].node)
+                            ,(ts_node_end_byte(cur_match.captures[i].node) - ts_node_start_byte(cur_match.captures[i].node)))) {
+                    capture_nodes[n] = cur_match.captures[i].node;
+                    n++;
+                }
+            }
+        }
+        print_highlights_to_term(all_sqls, capture_nodes, n);
+        free(capture_nodes);
+
+        ts_query_delete(cli_query);
+        free(q);
+    }
+
+
+    //std::cout << all_sqls;
+
+    const char * q1 = "(relation ( ( object_reference schema: (identifier)? name: (identifier)) @reference))";
+    //printf("q1 assigned\n");
+
+    //printf("parsed root: %s\n", ts_node_string(ts_tree_root_node(tree)));
+    //printf("query : %s", q1);
+
     TSQuery * table_names_q = ts_query_new(
         tree_sitter_sql(),
-        q,
-        strlen(q),
+        q1,
+        strlen(q1),
         &q_error_offset,
         &q_error
     );
 
     ts_query_cursor_exec(cursor, table_names_q, ts_tree_root_node(tree));
-    TSQueryMatch cur_match;
 
     std::string * table_names;
     //fprintf(stderr, "before loop\n");
@@ -205,7 +275,6 @@ int main(int argc, char ** argv) {
                             //ts_node_end_byte(cur_match.captures[i+1].node) - ts_node_start_byte(cur_match.captures[i+1].node),
                             //all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i+1].node),
                             ts_node_string(cur_match.captures[i].node));
-            const char * q;
             //snprintf(q, "insert into table_refs values (%i, %s);", start.column - end.column, all_sqls + start);
             //con.Query(q);
         }
@@ -230,7 +299,7 @@ int main(int argc, char ** argv) {
                             printf("FOUND THE CORRECT DDL: %.*s\n"
                                 ,(ts_node_end_byte(cur_match.captures[i].node) - ts_node_start_byte(cur_match.captures[i].node))
                                 ,all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i].node));
-                            print_highlights_to_term(all_sqls, &cur_match.captures[i].node, 1);
+                            //print_highlights_to_term(all_sqls, &cur_match.captures[i].node, 1);
                         }
         }
     }
