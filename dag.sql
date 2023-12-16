@@ -2,8 +2,8 @@ create table etl.leads as (select * from 'leads.parquet');
 create table etl.salesmen as (select * from 'salesmen.parquet');
 create table etl.listings as (select * from 'listings.parquet');
 create table etl.snapshot (
-    id      int autoincrement,
-    lead_id int foreign key source.leads("id"),
+    id      primary key,
+    lead_id int references source.leads("id"),
     updated date,
     field   text,
     old_value text,

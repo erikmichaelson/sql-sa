@@ -169,6 +169,7 @@ int main(int argc, char ** argv) {
         all_sqls.c_str(),
         strlen(all_sqls.c_str())
     );
+    printf("parsed root: %s\n", ts_node_string(ts_tree_root_node(tree)));
     //printf("trees built\n");
     // reused for all queries in `main`
     TSQueryCursor * cursor = ts_query_cursor_new();
@@ -179,6 +180,7 @@ int main(int argc, char ** argv) {
     char * table;
     TSQuery * cli_query;
     char * q;
+
     if(argc > 2) {
         // show either DDL or references for a table
         if(argc < 4 || strcmp(argv[2], "--show")) {
@@ -196,23 +198,24 @@ int main(int argc, char ** argv) {
                 table = (char *) malloc(strlen(argv[5]));
                 strcpy(table, argv[5]);
                 q = (char *) malloc(200);
-                sprintf(q, "(relation ((object_reference schema: (identifier) name: (identifier)) @reference ))", '?', table);
+                sprintf(q, "(relation ((object_reference schema: (identifier)%c name: (identifier)) @reference ))", '?', table);
                 printf("to query: %s\n", q);
                 printf("the following tables reference %s\n", table);
             } else if (!strcmp(argv[4], "--from")) {
-                printf("in TO references\n");
+                printf("in FROM references\n");
                 // all tables this table references 
                 table = (char *) malloc(strlen(argv[5]));
                 strcpy(table, argv[5]);
-                q = (char *) malloc(200);
-                sprintf(q, "(create_table (keyword_create) (keyword_table) (object_reference schema: (identifier)? name: (identifier))@create_name \
-                                (relation ((object_reference schema: (identifier)%c name: (identifier))@reference )) (#eq? @table_name \"%s\") )", '?', table);
+                q = (char *) malloc(250);
+                sprintf(q, "(create_table (keyword_create) (keyword_table) (object_reference schema: (identifier)? name: (identifier))@create_name\
+                                (relation ((object_reference schema: (identifier) name: (identifier))@reference ) ))");
                 printf("from query: %s\n", q);
             }
         }
 
         cli_query = ts_query_new(tree_sitter_sql(), q, strlen(q), &q_error_offset, &q_error);
         ts_query_cursor_exec(cursor, cli_query, ts_tree_root_node(tree));
+        printf("exec-ed\n");
         int n = 0;
         while(ts_query_cursor_next_match(cursor, &cur_match)) { n += cur_match.capture_count; }
         printf("n: %i ", n);
@@ -223,13 +226,14 @@ int main(int argc, char ** argv) {
         // this process is a massive computational waste
         n = 0;
         while(ts_query_cursor_next_match(cursor, &cur_match)) {
+            printf("num captures (2 would mean create and ref) %i\n", cur_match.capture_count);
             for(int i = 0; i < cur_match.capture_count; i++) {
-                if(substrcmp(table
+/*                if(substrcmp(table
                             ,all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i].node)
-                            ,(ts_node_end_byte(cur_match.captures[i].node) - ts_node_start_byte(cur_match.captures[i].node)))) {
+                            ,(ts_node_end_byte(cur_match.captures[i].node) - ts_node_start_byte(cur_match.captures[i].node)))) {*/
                     capture_nodes[n] = cur_match.captures[i].node;
                     n++;
-                }
+                //}
             }
         }
         print_highlights_to_term(all_sqls, capture_nodes, n);
@@ -245,7 +249,6 @@ int main(int argc, char ** argv) {
     const char * q1 = "(relation ( ( object_reference schema: (identifier)? name: (identifier)) @reference))";
     //printf("q1 assigned\n");
 
-    //printf("parsed root: %s\n", ts_node_string(ts_tree_root_node(tree)));
     //printf("query : %s", q1);
 
     TSQuery * table_names_q = ts_query_new(
