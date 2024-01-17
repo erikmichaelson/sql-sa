@@ -8,7 +8,8 @@
 #include <sql.h>
 #include <duckdb.hpp>
 
-//auto con = duckdb::Connection(":memory:");
+duckdb::DuckDB db(nullptr);
+duckdb::Connection con(db);
 
 const char * node_to_string(const char * source, const TSNode n) {
     char * ret = (char *) malloc((ts_node_end_byte(n) - ts_node_start_byte(n)) + 1);
@@ -169,7 +170,7 @@ int main(int argc, char ** argv) {
         all_sqls.c_str(),
         strlen(all_sqls.c_str())
     );
-    printf("parsed root: %s\n", ts_node_string(ts_tree_root_node(tree)));
+    //printf("parsed root: %s\n", ts_node_string(ts_tree_root_node(tree)));
     //printf("trees built\n");
     // reused for all queries in `main`
     TSQueryCursor * cursor = ts_query_cursor_new();
@@ -208,7 +209,7 @@ int main(int argc, char ** argv) {
                 strcpy(table, argv[5]);
                 q = (char *) malloc(250);
                 sprintf(q, "(create_table (keyword_create) (keyword_table) (object_reference schema: (identifier)? name: (identifier))@create_name\
-                                (relation ((object_reference schema: (identifier) name: (identifier))@reference ) ))");
+(relation ((object_reference schema: (identifier) name: (identifier))@reference ) ))");
                 printf("from query: %s\n", q);
             }
         }
@@ -236,7 +237,7 @@ int main(int argc, char ** argv) {
                 //}
             }
         }
-        print_highlights_to_term(all_sqls, capture_nodes, n);
+        //print_highlights_to_term(all_sqls, capture_nodes, n);
         free(capture_nodes);
 
         ts_query_delete(cli_query);
@@ -307,7 +308,7 @@ int main(int argc, char ** argv) {
         }
     }
 
-    free(table_names);
+    //free(table_names);
     ts_tree_delete(tree);
     ts_parser_delete(parser);
     return 0;
