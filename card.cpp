@@ -111,12 +111,17 @@ int substrcmp(const char * str1, const char * str2, uint32_t substrlen) {
     return 1;
 }
 
+typedef enum { PURPLE, RED } HIGHLIGHT_COLOR;
 // precondition: highlight_token_starts is sorted
-void print_highlights_to_term(std::string source, const TSNode * highlight_tokens, uint32_t n) {
-    printf("tokens: %i\n", n);
+void print_highlights_to_term(std::string source, const TSNode * highlight_tokens, HIGHLIGHT_COLOR color, uint32_t n) {
+    printf("tokens: %i color: %i\n", n, color);
     int adj = 0;
     for(int i = 0; i < n; i++) {
-        source.insert(ts_node_start_byte(highlight_tokens[i]) + adj, "\e[35m", 5);
+        printf("%i ", i);
+        if(color == RED)
+            source.insert(ts_node_start_byte(highlight_tokens[i]) + adj, "\e[31m", 5);
+        else if(color == PURPLE)
+            source.insert(ts_node_start_byte(highlight_tokens[i]) + adj, "\e[35m", 5);
         adj += 5;
         source.insert(ts_node_end_byte(highlight_tokens[i]) + adj, "\e[0m", 4);
         adj += 4;
@@ -237,15 +242,15 @@ int main(int argc, char ** argv) {
         printf("exec-ed\n");
         int n = 0;
         while(ts_query_cursor_next_match(cursor, &cur_match)) { n += cur_match.capture_count; }
-        printf("n: %i ", n);
         // since TS predicates don't work we have to overallocate
         TSNode * capture_nodes = (TSNode *) malloc(sizeof(TSNode) * n);
         ts_query_cursor_exec(cursor, cli_query, ts_tree_root_node(tree));
         // don't know why they have capture count if it's just straight wrong... :/
         // this process is a massive computational waste
         n = 0;
+        fprintf(stderr, "n reset: %i ", n);
         while(ts_query_cursor_next_match(cursor, &cur_match)) {
-            printf("num captures (2 would mean create and ref) %i\n", cur_match.capture_count);
+            //fprintf(stderr, "num captures (2 would mean create and ref) %i\n", cur_match.capture_count);
             for(int i = 0; i < cur_match.capture_count; i++) {
 /*                if(substrcmp(table
                             ,all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i].node)
@@ -255,6 +260,7 @@ int main(int argc, char ** argv) {
                 //}
             }
         }
+        fprintf(stderr, "n: %i ", n);
         //print_highlights_to_term(all_sqls, capture_nodes, n);
         free(capture_nodes);
 
@@ -265,10 +271,11 @@ int main(int argc, char ** argv) {
 
     //std::cout << all_sqls;
 
-    const char * q1 = "(relation ( ( object_reference schema: (identifier)? name: (identifier)) @reference))";
+    const char * q1 = "(relation ( object_reference schema: (identifier)? name: (identifier)) @reference alias: (identifier) @alias )";
+    //const char * q1 = "(relation ( ( object_reference schema: (identifier)? name: (identifier)) @reference ))";
     //printf("q1 assigned\n");
 
-    //printf("query : %s", q1);
+    fprintf(stderr, "query : %s", q1);
 
     TSQuery * table_names_q = ts_query_new(
         tree_sitter_sql(),
@@ -323,6 +330,7 @@ int main(int argc, char ** argv) {
                             ,all_sqls.c_str() + ts_node_start_byte(cur_match.captures[0].node));
                         //print_highlights_to_term(all_sqls, &cur_match.captures[0].node, 1);
                         printf("%i\n", j);
+                        printf("%s\n", ts_node_string(ts_node_parent(cur_match.captures[0].node)));
                         break;
                     }
         j++;
@@ -333,19 +341,30 @@ int main(int argc, char ** argv) {
     // this limits it to all of the direct from / joined tables (no CTEs / subqueries)
     ts_query_cursor_set_max_start_depth(cursor, 4);
     ts_query_cursor_exec(cursor, table_names_q, node);
-    int n;
-    while(ts_query_cursor_next_match(cursor, &cur_match)) { n += cur_match.capture_count; }
-    printf("n: %i ", n);
-    TSNode * capture_nodes2 = (TSNode *) malloc(sizeof(TSNode) * n);
-    ts_query_cursor_exec(cursor, table_names_q, node);
-    n = 0;
+    int tables;
+    int aliases;
     while(ts_query_cursor_next_match(cursor, &cur_match)) {
-        for(int i = 0; i < cur_match.capture_count; i++) {
-            capture_nodes2[n] = cur_match.captures[i].node;
-        }
-        n += cur_match.capture_count;
+        tables  ++;
+        if(cur_match.capture_count > 1)
+            aliases ++;
     }
-    print_highlights_to_term(all_sqls, capture_nodes2, n);
+    printf("tables: %i, aliases: %i ", tables, aliases);
+    TSNode * table_refs = (TSNode *) malloc(sizeof(TSNode) * tables);
+    TSNode * table_aliases = (TSNode *) malloc(sizeof(TSNode) * aliases);
+    ts_query_cursor_exec(cursor, table_names_q, node);
+    int i = 0;
+    j = 0;
+    while(ts_query_cursor_next_match(cursor, &cur_match)) {
+        printf("capture count: %i (2 would mean alias captured)\n", cur_match.capture_count);
+        table_refs[i] = cur_match.captures[0].node;
+        if(cur_match.capture_count > 1) {
+            table_aliases[j] = cur_match.captures[1].node;
+            j++;
+        }
+        i++;
+    }
+    print_highlights_to_term(all_sqls, table_refs, PURPLE, i);
+    print_highlights_to_term(all_sqls, table_aliases, RED, j);
 
     //free(table_names);
     ts_tree_delete(tree);
