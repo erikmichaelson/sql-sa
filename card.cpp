@@ -128,15 +128,17 @@ std::string open_sqls(std::string files) {
     std::string ret;
     // open all SQL files into a buffer. Hideously inefficient, but we're small atm
     if(files == "ALL") {
-        DIR* cwd = opendir(".");
+        DIR* cwd = opendir("./test/");
         while(struct dirent* e = readdir(cwd)) {
             std::string a = std::string(e->d_name);
+            std::cout << a;
             if(a.find(".sql") != std::string::npos) {
                 printf("Looking in 'sql' file %s\n", e->d_name);
                 std::ifstream fd;
                 fd.open(e->d_name);
                 std::string new_ret( (std::istreambuf_iterator<char>(fd) ),
                                      (std::istreambuf_iterator<char>()    ) );
+                std::cout << new_ret;
                 ret.append(new_ret);
                 fd.close();
             }
@@ -152,6 +154,20 @@ std::string open_sqls(std::string files) {
     }
     return ret;
 }
+
+/*
+char * get_source_for_field(TSNode term_stmt) {
+    char * alias_ref;
+    // term >> _expression >> field >> object_reference >> identifier >> _identifier
+    TSQueryCursor * cursor = ts_query_cursor_new();
+    const char * q = "(field ( object_reference (identifier) @table_alias ))";
+    ts_query_cursor_exec(q, 53);
+    alias_ref = to_string(ts_node_child_by_field_name(term_stmt, "alias_reference", ));
+    TSNode create_table_stmt = term_stmt;
+    ts_query_cursor_delete(cursor);
+    while(term_stmt
+}
+*/
 
 int main(int argc, char ** argv) {
     std::string files = "ALL";
@@ -170,6 +186,8 @@ int main(int argc, char ** argv) {
         all_sqls.c_str(),
         strlen(all_sqls.c_str())
     );
+    //FILE * dg = fopen("dotgraph.dot", "w");
+    //ts_tree_print_dot_graph(tree, fileno(dg));
     //printf("parsed root: %s\n", ts_node_string(ts_tree_root_node(tree)));
     //printf("trees built\n");
     // reused for all queries in `main`
@@ -289,24 +307,45 @@ int main(int argc, char ** argv) {
     /* column checking
     duckdb::ColumnRef c = duckdb::ColumnRef(
     duckdb::Bind(
+    const char * table = "etl.snapshot";
     */
-    const char * table_were_looking_for = "etl.snapshot";
     const char * ddl = "(create_table (keyword_create) (keyword_table) (object_reference schema: (identifier)? name: (identifier)) @definition)";
     // reusing error offsets and cursors from before
     TSQuery * ddl_q = ts_query_new(tree_sitter_sql(), ddl, strlen(ddl), &q_error_offset, &q_error);
     ts_query_cursor_exec(cursor, ddl_q, ts_tree_root_node(tree));
+    int j;
+    while(ts_query_cursor_next_match(cursor, &cur_match)) {
+        if(!strncmp(table
+                    ,all_sqls.c_str() + ts_node_start_byte(cur_match.captures[0].node)
+                    ,(ts_node_end_byte(cur_match.captures[0].node) - ts_node_start_byte(cur_match.captures[0].node)))) {
+                        printf("FOUND THE CORRECT DDL: %.*s\n"
+                            ,(ts_node_end_byte(cur_match.captures[0].node) - ts_node_start_byte(cur_match.captures[0].node))
+                            ,all_sqls.c_str() + ts_node_start_byte(cur_match.captures[0].node));
+                        //print_highlights_to_term(all_sqls, &cur_match.captures[0].node, 1);
+                        printf("%i\n", j);
+                        break;
+                    }
+        j++;
+    }
+    printf("%i\n %s\n", j, ts_node_string(cur_match.captures[0].node));
+
+    TSNode node = ts_node_parent(cur_match.captures[0].node);
+    // this limits it to all of the direct from / joined tables (no CTEs / subqueries)
+    ts_query_cursor_set_max_start_depth(cursor, 4);
+    ts_query_cursor_exec(cursor, table_names_q, node);
+    int n;
+    while(ts_query_cursor_next_match(cursor, &cur_match)) { n += cur_match.capture_count; }
+    printf("n: %i ", n);
+    TSNode * capture_nodes2 = (TSNode *) malloc(sizeof(TSNode) * n);
+    ts_query_cursor_exec(cursor, table_names_q, node);
+    n = 0;
     while(ts_query_cursor_next_match(cursor, &cur_match)) {
         for(int i = 0; i < cur_match.capture_count; i++) {
-            if(substrcmp(table_were_looking_for
-                        ,all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i].node)
-                        ,(ts_node_end_byte(cur_match.captures[i].node) - ts_node_start_byte(cur_match.captures[i].node)))) {
-                            printf("FOUND THE CORRECT DDL: %.*s\n"
-                                ,(ts_node_end_byte(cur_match.captures[i].node) - ts_node_start_byte(cur_match.captures[i].node))
-                                ,all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i].node));
-                            //print_highlights_to_term(all_sqls, &cur_match.captures[i].node, 1);
-                        }
+            capture_nodes2[n] = cur_match.captures[i].node;
         }
+        n += cur_match.capture_count;
     }
+    print_highlights_to_term(all_sqls, capture_nodes2, n);
 
     //free(table_names);
     ts_tree_delete(tree);
