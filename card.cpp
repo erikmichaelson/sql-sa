@@ -112,21 +112,28 @@ int substrcmp(const char * str1, const char * str2, uint32_t substrlen) {
 }
 
 typedef enum { PURPLE, RED } HIGHLIGHT_COLOR;
+
+typedef struct {
+    TSNode node;
+    HIGHLIGHT_COLOR color;
+} node_color_map;
+
 // precondition: highlight_token_starts is sorted
-void print_highlights_to_term(std::string source, const TSNode * highlight_tokens, HIGHLIGHT_COLOR color, uint32_t n) {
-    printf("tokens: %i color: %i\n", n, color);
+std::string format_term_highlights(std::string source, const node_color_map * highlight_tokens, uint32_t n) {
     int adj = 0;
     for(int i = 0; i < n; i++) {
         printf("%i ", i);
-        if(color == RED)
-            source.insert(ts_node_start_byte(highlight_tokens[i]) + adj, "\e[31m", 5);
-        else if(color == PURPLE)
-            source.insert(ts_node_start_byte(highlight_tokens[i]) + adj, "\e[35m", 5);
-        adj += 5;
-        source.insert(ts_node_end_byte(highlight_tokens[i]) + adj, "\e[0m", 4);
+        if(highlight_tokens[i].color == RED) {
+            source.insert(ts_node_start_byte(highlight_tokens[i].node) + adj, "\e[31m", 5);
+            adj += 5;
+         } else if(highlight_tokens[i].color == PURPLE) {
+            source.insert(ts_node_start_byte(highlight_tokens[i].node) + adj, "\e[35m", 5);
+            adj += 5;
+        }
+        source.insert(ts_node_end_byte(highlight_tokens[i].node) + adj, "\e[0m", 4);
         adj += 4;
     }
-    printf("%s", source.c_str());
+    return source;
 }
 
 std::string open_sqls(std::string files) {
@@ -341,32 +348,31 @@ int main(int argc, char ** argv) {
     // this limits it to all of the direct from / joined tables (no CTEs / subqueries)
     ts_query_cursor_set_max_start_depth(cursor, 4);
     ts_query_cursor_exec(cursor, table_names_q, node);
-    int tables;
-    int aliases;
-    while(ts_query_cursor_next_match(cursor, &cur_match)) {
-        tables  ++;
-        if(cur_match.capture_count > 1)
-            aliases ++;
-    }
-    printf("tables: %i, aliases: %i ", tables, aliases);
-    TSNode * table_refs = (TSNode *) malloc(sizeof(TSNode) * tables);
-    TSNode * table_aliases = (TSNode *) malloc(sizeof(TSNode) * aliases);
+    int nodes;
+    while(ts_query_cursor_next_match(cursor, &cur_match))
+        nodes += cur_match.capture_count;
+    node_color_map * table_refs = (node_color_map *) malloc(sizeof(node_color_map) * nodes);
     ts_query_cursor_exec(cursor, table_names_q, node);
     int i = 0;
-    j = 0;
     while(ts_query_cursor_next_match(cursor, &cur_match)) {
         printf("capture count: %i (2 would mean alias captured)\n", cur_match.capture_count);
-        table_refs[i] = cur_match.captures[0].node;
-        if(cur_match.capture_count > 1) {
-            table_aliases[j] = cur_match.captures[1].node;
-            j++;
-        }
+        node_color_map c;
+        c.node = cur_match.captures[0].node;
+        c.color = PURPLE;
+        table_refs[i] = c;
         i++;
+        if(cur_match.capture_count > 1) {
+            node_color_map a;
+            a.node = cur_match.captures[1].node;
+            a.color = RED;
+            table_refs[i] = a;
+            i++;
+        }
     }
-    print_highlights_to_term(all_sqls, table_refs, PURPLE, i);
-    print_highlights_to_term(all_sqls, table_aliases, RED, j);
+    std::string f = format_term_highlights(all_sqls, table_refs, i);
+    printf("%s", f.c_str());
 
-    //free(table_names);
+    free(table_refs);
     ts_tree_delete(tree);
     ts_parser_delete(parser);
     return 0;
