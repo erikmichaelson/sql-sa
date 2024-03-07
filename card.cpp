@@ -7,6 +7,7 @@
 #include <tree_sitter/api.h>
 #include <sql.h>
 #include <duckdb.hpp>
+#include <list>
 
 duckdb::DuckDB db(nullptr);
 duckdb::Connection con(db);
@@ -17,56 +18,6 @@ const char * node_to_string(const char * source, const TSNode n) {
     ret[ts_node_end_byte(n) - ts_node_start_byte(n)] = '\0';
     return ret;
 }
-
-// fully bound column
-typedef struct {
-    std::string schema;
-    std::string table;
-    std::string column;
-} STC;
-
-/*
-STC * pseudo_bind(string * tables, size_t num_tables, string column) {
-    string q = "select table_schema, table_name, column_name from information_schema.columns where table_name in (";
-    for(int i = 0; i < num_tables; i++) {
-        q.append("'%s'", tables[i]);
-    }
-    q.append(") and column_name = '%s'", column);
-    auto result = con.Query(q);
-    if(result.RowCount() > 1) {
-        printf("BINDING ERROR: column %s appears in both tables");
-        exit(1);
-    }
-    STC * ret = (STC *) malloc(sizeof(STC));
-    ret->schema = result.GetValue(0,0).ToString();
-    ret->table = result.GetValue(0,1).ToString();
-    ret->column = result.GetValue(0,2).ToString();
-    return ret;
-}
-
-id_downstreams(STC table_ref) {
-    // djkstra's out
-    node cur_node;
-    node_stack.push(table_ref);
-    while (peek(node_stack) != null) {
-        cur_node = pop(node_stack);
-        if(cur_node == )
-    }
-    return bits;
-}
-
-highlight_downstreams(STC * columns) {
-    for(c in columns) {
-        std::string q = "(relation(object_reference( schema: (identifier)? table: (identifier) )@reference ))";
-        ts_query(ts_root_node(tree), q.c_str(), strlen(q));
-        for(int j = 0; j < q_result.capture_count; j++){
-            if(strcmp(q_result.captures[i], ) == 0) {
-                ts_node_start(q_result.captures[i].node);
-            }
-        }
-    }
-}
-*/
 
 std::string * get_file_order() {
     std::string *ret = (std::string *)malloc(sizeof(std::string));
@@ -89,26 +40,6 @@ std::string * get_file_order() {
     */
 
     return ret;
-}
-
-/*
-    compares the first substrlen bytes of str2 to the totality of str1 (up to the \0)
-    str1 therefore needs a \0 at its end, str2 cannot. Maybe I should change this?
-    Since I assume this is being called with ts_node start and end bytes feeding the
-    arguments, I'm assuming these ranges won't have \0 in them (before the last character)
-    if they do, we're returning FALSE. You need to know the size of the strings you're passing
-    in here
-
-    returns 1 if true, 0 otherwise
-*/
-int substrcmp(const char * str1, const char * str2, uint32_t substrlen) {
-    int i = 0;
-    while(i < substrlen) {
-        if(str1[i] == '\0' || str2[i] == '\0' || str1[i] != str2[i])
-            return 0;
-        i++;
-    }
-    return 1;
 }
 
 typedef enum { PURPLE, RED } HIGHLIGHT_COLOR;
@@ -162,6 +93,10 @@ std::string open_sqls(std::string files) {
         std::string new_ret( (std::istreambuf_iterator<char>(fd) ),
                              (std::istreambuf_iterator<char>()    ) );
         ret.append(new_ret);
+        if(ret.length() == 0) {
+            printf("ERROR: nothing read from file\n;(fixit)");
+            exit(1);
+        }
         fd.close();
     }
     return ret;
@@ -178,8 +113,65 @@ char * get_source_for_field(TSNode term_stmt) {
     TSNode create_table_stmt = term_stmt;
     ts_query_cursor_delete(cursor);
     while(term_stmt
+    // TODO: unaliased (guessing / pseudo-catalog case)
 }
-*/
+
+TSNode parent_context(TSPoint clicked) {
+    while(strcmp(ts_node_type(clicked), "cte") && strcmp(ts_node_type(clicked), "create_query") && strcmp(ts_node_type(clicked), "subquery"))
+        clicked = ts_node_parent(clicked);
+    return clicked;
+}*/
+
+std::list<TSNode> expand_select_all(TSNode star_node);
+
+std::list<TSNode> result_columns_for_ddl(TSNode ddl) {
+    const char * q = "(select_statement: (select (term: [(identifier) (all_fields)] @fieldname)))";
+    TSQueryCursor * cursor = ts_query_cursor_new();
+    uint32_t q_error_offset;
+    TSQueryError q_error;
+    TSQuery * selection_q = ts_query_new(tree_sitter_sql(), q, 54, &q_error_offset, &q_error);
+    ts_query_cursor_exec(cursor, selection_q, ts_tree_root_node(ddl.tree));
+    std::list<std::string> field_list;
+    TSQueryMatch cur_match;
+    while(ts_query_cursor_next_match(cursor, &cur_match)) {
+        if(!ts_node_field_name_for_child(cur_match.captures[0].node, 0), "all_fields")
+            field_list.merge(expand_select_all(cur_match.captures[0].node));
+        field_list.push_front(cur_match.captures[0].node);
+    }
+    return field_list;
+}
+
+// todo: write ts_node_text_equals(TSNode n, const char * c)
+// OR figure out how their query predicates work
+
+std::list<TSNode> expand_select_all(TSNode star_node) {
+    std::list<TSNode> field_list;
+    const char * reference = node_to_string(ts_node_child(ts_node_child(star_node, 0), 0));
+    while(strcmp(ts_node_field_name_for_child(star_node, 0), "select"))
+        star_node = ts_node_parent(star_node);
+    TSQueryError q_error;
+    uint32_t q_error_offset;
+    const char * q = "(relation (object_reference schema: (identifier)? name: (identifier)) @table alias: (identifier) @alias)";
+    TSQuery * references = ts_query_new(tree_sitter_sql(), q, 105, &q_error_offset, &q_error);
+    TSQueryCursor * cursor = ts_query_cursor_new();
+    ts_query_cursor_exec(cursor, references, star_node);
+    TSQueryMatch cur_match;
+    while(ts_query_cursor_next_match(cursor, &cur_match)) {
+        // first predicate should only happen if all cols from all tables are selected
+        if(ts_node_child_count(star_node) == 1) {
+            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node));
+        // the full table matched
+        } else if(!strcmp(cur_match.captures[0].node, reference)) {
+            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node));
+            // if the reference before the * was an alias that matches this alias, get all of the fields
+            // from the associated table
+        } else if(!strcmp(source + ts_node_start_byte(cur_match.captures[1].node), reference))
+            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node));
+
+    }
+    free(references);
+    return field_list;
+}
 
 int main(int argc, char ** argv) {
     std::string files = "ALL";

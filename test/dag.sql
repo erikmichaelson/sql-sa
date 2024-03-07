@@ -37,3 +37,10 @@ create table dag.new_table as (
     left join cust_level c on l.cust_ssn = c.cust_ssn
     left join (select s.start_dt, s.end_dt) from etl.salesmen s on (l.owner_id = s.id)) as tnaa
 );
+
+create table dag.another as (
+    select e.*, count(l.id)
+    from etl.employee e
+    left join etl.leads l on (l.owner_id = e.id)
+    group by e.*
+);
