@@ -12,6 +12,10 @@
 duckdb::DuckDB db(nullptr);
 duckdb::Connection con(db);
 
+bool node_compare(TSNode n1, TSNode n2) {
+    return ts_node_start_byte(n1) < ts_node_start_byte(n2);
+}
+
 const char * node_to_string(const char * source, const TSNode n) {
     char * ret = (char *) malloc((ts_node_end_byte(n) - ts_node_start_byte(n)) + 1);
     snprintf(ret, (ts_node_end_byte(n) - ts_node_start_byte(n) + 1), "%s", source + ts_node_start_byte(n));
@@ -135,7 +139,7 @@ std::list<TSNode> result_columns_for_ddl(TSNode ddl, const char * source) {
     TSQueryMatch cur_match;
     while(ts_query_cursor_next_match(cursor, &cur_match)) {
         if(!ts_node_field_name_for_child(cur_match.captures[0].node, 0), "all_fields")
-            field_list.merge(expand_select_all(cur_match.captures[0].node, source));
+            field_list.merge(expand_select_all(cur_match.captures[0].node, source), node_compare);
         field_list.push_front(cur_match.captures[0].node);
     }
     return field_list;
@@ -159,14 +163,14 @@ std::list<TSNode> expand_select_all(TSNode star_node, const char * source) {
     while(ts_query_cursor_next_match(cursor, &cur_match)) {
         // first predicate should only happen if all cols from all tables are selected
         if(ts_node_child_count(star_node) == 1) {
-            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node, source));
+            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node, source), node_compare);
         // the full table matched
         } else if(!strcmp(source + ts_node_start_byte(cur_match.captures[0].node), reference)) {
-            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node, source));
+            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node, source), node_compare);
             // if the reference before the * was an alias that matches this alias, get all of the fields
             // from the associated table
         } else if(!strcmp(source + ts_node_start_byte(cur_match.captures[1].node), reference))
-            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node, source));
+            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node, source), node_compare);
 
     }
     free(references);
