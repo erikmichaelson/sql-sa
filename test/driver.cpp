@@ -1,12 +1,6 @@
 #include "../card.cpp"
-#include "duckdb.hpp"
 
-DuckDB::DuckDB db(nullptr);
-DuckDB::Connection CON(db);
-// initialize the catalog
-// TODO: make the parquet files referenced here
 all_sqls = open("dag.sql")
-db.query(all_sqls);
 
 CardRuntime * card = card_runtime_new();
 card.register_sql(all_sqls);
