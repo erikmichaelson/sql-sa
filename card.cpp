@@ -122,20 +122,20 @@ TSNode parent_context(TSPoint clicked) {
     return clicked;
 }*/
 
-std::list<TSNode> expand_select_all(TSNode star_node);
+std::list<TSNode> expand_select_all(TSNode star_node, const char * source);
 
-std::list<TSNode> result_columns_for_ddl(TSNode ddl) {
+std::list<TSNode> result_columns_for_ddl(TSNode ddl, const char * source) {
     const char * q = "(select_statement: (select (term: [(identifier) (all_fields)] @fieldname)))";
     TSQueryCursor * cursor = ts_query_cursor_new();
     uint32_t q_error_offset;
     TSQueryError q_error;
     TSQuery * selection_q = ts_query_new(tree_sitter_sql(), q, 54, &q_error_offset, &q_error);
     ts_query_cursor_exec(cursor, selection_q, ts_tree_root_node(ddl.tree));
-    std::list<std::string> field_list;
+    std::list<TSNode> field_list;
     TSQueryMatch cur_match;
     while(ts_query_cursor_next_match(cursor, &cur_match)) {
         if(!ts_node_field_name_for_child(cur_match.captures[0].node, 0), "all_fields")
-            field_list.merge(expand_select_all(cur_match.captures[0].node));
+            field_list.merge(expand_select_all(cur_match.captures[0].node, source));
         field_list.push_front(cur_match.captures[0].node);
     }
     return field_list;
@@ -144,9 +144,9 @@ std::list<TSNode> result_columns_for_ddl(TSNode ddl) {
 // todo: write ts_node_text_equals(TSNode n, const char * c)
 // OR figure out how their query predicates work
 
-std::list<TSNode> expand_select_all(TSNode star_node) {
+std::list<TSNode> expand_select_all(TSNode star_node, const char * source) {
     std::list<TSNode> field_list;
-    const char * reference = node_to_string(ts_node_child(ts_node_child(star_node, 0), 0));
+    const char * reference = node_to_string(source, ts_node_child(ts_node_child(star_node, 0), 0));
     while(strcmp(ts_node_field_name_for_child(star_node, 0), "select"))
         star_node = ts_node_parent(star_node);
     TSQueryError q_error;
@@ -159,14 +159,14 @@ std::list<TSNode> expand_select_all(TSNode star_node) {
     while(ts_query_cursor_next_match(cursor, &cur_match)) {
         // first predicate should only happen if all cols from all tables are selected
         if(ts_node_child_count(star_node) == 1) {
-            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node));
+            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node, source));
         // the full table matched
-        } else if(!strcmp(cur_match.captures[0].node, reference)) {
-            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node));
+        } else if(!strcmp(source + ts_node_start_byte(cur_match.captures[0].node), reference)) {
+            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node, source));
             // if the reference before the * was an alias that matches this alias, get all of the fields
             // from the associated table
         } else if(!strcmp(source + ts_node_start_byte(cur_match.captures[1].node), reference))
-            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node));
+            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node, source));
 
     }
     free(references);
