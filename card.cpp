@@ -293,7 +293,7 @@ int main(int argc, char ** argv) {
     std::string * table_names;
     //fprintf(stderr, "before loop\n");
     while(ts_query_cursor_next_match(cursor, &cur_match)) {
-        //fprintf(stderr, "in loop\n");
+        fprintf(stderr, "in loop\n");
         //printf("%s", ts_node_string(cur_match.captures[0].node));
         table_names = (std::string *) malloc(sizeof(std::string) * cur_match.capture_count);
         for(int i = 0; i < cur_match.capture_count; i++) {
