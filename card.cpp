@@ -12,6 +12,16 @@
 duckdb::DuckDB db(nullptr);
 duckdb::Connection con(db);
 
+void debug_print_node_capture_info(uint32_t id, TSNode node, std::string all_sqls) {
+    printf("id: %i, references: %.*s, capture: %s\n", id,
+                    ts_node_end_byte(node) - ts_node_start_byte(node),
+                    all_sqls.c_str() + ts_node_start_byte(node),
+                    //ts_node_end_byte(cur_match.captures[i+1].node) - ts_node_start_byte(cur_match.captures[i+1].node),
+                    //all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i+1].node),
+                    ts_node_string(node));
+    return;
+}
+
 bool node_compare(TSNode n1, TSNode n2) {
     return ts_node_start_byte(n1) < ts_node_start_byte(n2);
 }
@@ -59,7 +69,7 @@ typedef struct {
 std::string format_term_highlights(std::string source, const node_color_map * highlight_tokens, uint32_t n) {
     int adj = 0;
     for(int i = 0; i < n; i++) {
-        printf("%i ", i);
+        fprintf(stderr, "%i ", i);
         if(highlight_tokens[i].color == RED) {
             source.insert(ts_node_start_byte(highlight_tokens[i].node) + adj, "\e[31m", 5);
             adj += 5;
@@ -179,9 +189,56 @@ std::list<TSNode> expand_select_star(TSNode star_node, const char * source) {
     return field_list;
 }
 
-void hightlight_references_to_table(std::string code, const char * table) {
-    printf("FUNCTION NOT IMPLEMENTED YET\n");
-    exit(1);
+void highlight_references_to_table(TSTree * tree, std::string code, const char * table) {
+    TSQueryCursor * cursor = ts_query_cursor_new();
+    uint32_t q_error_offset;
+    TSQueryError q_error;
+    TSQueryMatch cur_match;
+    TSQuery * table_references = ts_query_new(
+        tree_sitter_sql(),
+        "(relation ( object_reference schema: (identifier)? name: (identifier)) @reference alias: (identifier) @alias )",
+        110,
+        &q_error_offset,
+        &q_error
+    );
+    ts_query_cursor_exec(cursor, table_references, ts_tree_root_node(tree));
+    int all_references_count;
+    while(ts_query_cursor_next_match(cursor, &cur_match)) { all_references_count++; }
+    printf("relation references with aliases: %i\n", all_references_count);
+    // bc each of these can have two captures - node and alias - we need to pre-alloc twice the space
+    node_color_map * reflist = (node_color_map *) malloc(2 * all_references_count * sizeof(node_color_map));
+
+    ts_query_cursor_exec(cursor, table_references, ts_tree_root_node(tree));
+    printf("exec-ed\n");
+
+    uint32_t j = 0;
+    while(ts_query_cursor_next_match(cursor, &cur_match)) {
+        if(!strncmp(table
+                    ,code.c_str() + ts_node_start_byte(cur_match.captures[0].node)
+                    ,(ts_node_end_byte(cur_match.captures[0].node) - (ts_node_start_byte(cur_match.captures[0].node))))) {
+            node_color_map hl;
+            hl.node = cur_match.captures[0].node;
+            hl.color = PURPLE;
+            reflist[j] = hl;
+            j++;
+            debug_print_node_capture_info(j, cur_match.captures[0].node, code);
+            if(cur_match.capture_count > 1) {
+                node_color_map hl_alias;
+                hl_alias.node = cur_match.captures[1].node;
+                hl_alias.color = RED;
+                debug_print_node_capture_info(j, cur_match.captures[1].node, code);
+                reflist[j] = hl_alias;
+                j++;
+            }
+        }
+    }
+    printf("relation references to %s: %i\n", table, j);
+    std::string ret = format_term_highlights(code, reflist, j);
+    printf("returned from format_term_highlights\n");
+    printf("%s", ret.c_str());
+    ts_query_cursor_delete(cursor);
+    ts_query_delete(table_references);
+    return;
 }
 
 void highlight_references_from_table(TSTree * tree, std::string code, const char * table) {
@@ -206,7 +263,6 @@ void highlight_references_from_table(TSTree * tree, std::string code, const char
                         printf("FOUND THE CORRECT DDL: %.*s\n"
                             ,(ts_node_end_byte(cur_match.captures[0].node) - ts_node_start_byte(cur_match.captures[0].node))
                             ,code.c_str() + ts_node_start_byte(cur_match.captures[0].node));
-                        //print_highlights_to_term(code, &cur_match.captures[0].node, 1);
                         printf("%i\n", j);
                         printf("%s\n", ts_node_string(ts_node_parent(cur_match.captures[0].node)));
                         break;
@@ -253,6 +309,9 @@ void highlight_references_from_table(TSTree * tree, std::string code, const char
     printf("%s", f.c_str());
 
     free(table_refs);
+    ts_query_cursor_delete(cursor);
+    ts_query_delete(table_names_q);
+    ts_query_delete(create_table_q);
     return;
 }
 
@@ -307,6 +366,7 @@ int main(int argc, char ** argv) {
                 snprintf(q, 85, "(relation ((object_reference schema: (identifier)? name: (identifier)) @reference ))");
                 printf("to query: %s\n", q);
                 printf("the following tables reference %s\n", table);
+                highlight_references_to_table(tree, all_sqls, (const char *) table);
             } else if (!strcmp(argv[4], "--from")) {
                 printf("in FROM references\n");
                 // all tables this table references 
@@ -379,12 +439,7 @@ int main(int argc, char ** argv) {
             TSPoint end = ts_node_end_point(cur_match.captures[i].node);
             printf("[%2d:%-2d - %2d:%-2d] ", start.row, start.column, end.row, end.column);
             int len = start.column - end.column;
-            printf("id: %i, references: %.*s, capture: %s\n", cur_match.id,
-                            ts_node_end_byte(cur_match.captures[i].node) - ts_node_start_byte(cur_match.captures[i].node),
-                            all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i].node),
-                            //ts_node_end_byte(cur_match.captures[i+1].node) - ts_node_start_byte(cur_match.captures[i+1].node),
-                            //all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i+1].node),
-                            ts_node_string(cur_match.captures[i].node));
+            debug_print_node_capture_info(cur_match.id, cur_match.captures[i].node, all_sqls);
             //snprintf(q, "insert into table_refs values (%i, %s);", start.column - end.column, all_sqls + start);
             //con.Query(q);
         }
