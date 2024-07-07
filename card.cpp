@@ -9,8 +9,8 @@
 #include <duckdb.hpp>
 #include <list>
 
-duckdb::DuckDB db(nullptr);
-duckdb::Connection con(db);
+//duckdb::DuckDB db(nullptr);
+//duckdb::Connection con(db);
 
 void debug_print_node_capture_info(uint32_t id, TSNode node, std::string all_sqls) {
     printf("id: %i, references: %.*s, capture: %s\n", id,
@@ -65,22 +65,51 @@ typedef struct {
     HIGHLIGHT_COLOR color;
 } node_color_map;
 
+typedef struct {
+    node_color_map * ncms;
+    uint32_t length;
+} node_color_map_list;
+
 // precondition: highlight_token_starts is sorted
-std::string format_term_highlights(std::string source, const node_color_map * highlight_tokens, uint32_t n) {
+std::string format_term_highlights(std::string source, const node_color_map_list * highlight_tokens) {
     int adj = 0;
-    for(int i = 0; i < n; i++) {
+    for(int i = 0; i < highlight_tokens->length; i++) {
         fprintf(stderr, "%i ", i);
-        if(highlight_tokens[i].color == RED) {
-            source.insert(ts_node_start_byte(highlight_tokens[i].node) + adj, "\e[31m", 5);
+        if(highlight_tokens->ncms[i].color == RED) {
+            source.insert(ts_node_start_byte(highlight_tokens->ncms[i].node) + adj, "\e[31m", 5);
             adj += 5;
-         } else if(highlight_tokens[i].color == PURPLE) {
-            source.insert(ts_node_start_byte(highlight_tokens[i].node) + adj, "\e[35m", 5);
+         } else if(highlight_tokens->ncms[i].color == PURPLE) {
+            source.insert(ts_node_start_byte(highlight_tokens->ncms[i].node) + adj, "\e[35m", 5);
             adj += 5;
         }
-        source.insert(ts_node_end_byte(highlight_tokens[i].node) + adj, "\e[0m", 4);
+        source.insert(ts_node_end_byte(highlight_tokens->ncms[i].node) + adj, "\e[0m", 4);
         adj += 4;
     }
     return source;
+}
+
+node_color_map_list * reflist_to_highlights(std::list<TSNode> reflist) {
+    node_color_map_list * ret;
+    // again, alloc double since we don't know how many of these have an alias too
+    ret->ncms = (node_color_map *) malloc(2 * reflist.size() * sizeof(node_color_map));
+    int i = 0;
+    for(TSNode ref : reflist) {
+        node_color_map hl;
+        hl.node = ref;
+        hl.color = PURPLE;
+        ret->ncms[i] = hl;
+        i++;
+        if(ts_node_child_count(ts_node_parent(ref)) == 2) {
+            node_color_map hl2;
+            hl2.node = ts_node_next_sibling(ref);
+            hl2.color = RED;
+            ret->ncms[i] = hl2;
+            i++;
+        }
+    }
+    ret->length = i;
+    printf("conversion to highlight list successful\n");
+    return ret;
 }
 
 std::string open_sqls(std::string files) {
@@ -150,7 +179,7 @@ std::list<TSNode> result_columns_for_ddl(TSNode ddl, const char * source) {
     std::list<TSNode> field_list;
     TSQueryMatch cur_match;
     while(ts_query_cursor_next_match(cursor, &cur_match)) {
-        if(!strcmp(ts_node_field_name_for_child(cur_match.captures[0].node, 0),"all_fields"))
+        if(!strcmp(ts_node_field_name_for_child(cur_match.captures[0].node, 0), "all_fields"))
             field_list.merge(expand_select_star(cur_match.captures[0].node, source), node_compare);
         field_list.push_front(cur_match.captures[0].node);
     }
@@ -189,15 +218,15 @@ std::list<TSNode> expand_select_star(TSNode star_node, const char * source) {
     return field_list;
 }
 
-void highlight_references_to_table(TSTree * tree, std::string code, const char * table) {
+std::list<TSNode> references_to_table(TSTree * tree, std::string code, const char * table) {
     TSQueryCursor * cursor = ts_query_cursor_new();
     uint32_t q_error_offset;
     TSQueryError q_error;
     TSQueryMatch cur_match;
     TSQuery * table_references = ts_query_new(
         tree_sitter_sql(),
-        "(relation ( object_reference schema: (identifier)? name: (identifier)) @reference alias: (identifier) @alias )",
-        110,
+        "(relation ( object_reference schema: (identifier)? name: (identifier)) @reference alias: (identifier)? @alias )",
+        111,
         &q_error_offset,
         &q_error
     );
@@ -206,42 +235,23 @@ void highlight_references_to_table(TSTree * tree, std::string code, const char *
     while(ts_query_cursor_next_match(cursor, &cur_match)) { all_references_count++; }
     printf("relation references with aliases: %i\n", all_references_count);
     // bc each of these can have two captures - node and alias - we need to pre-alloc twice the space
-    node_color_map * reflist = (node_color_map *) malloc(2 * all_references_count * sizeof(node_color_map));
+    std::list<TSNode> reflist;
 
     ts_query_cursor_exec(cursor, table_references, ts_tree_root_node(tree));
-    printf("exec-ed\n");
-
-    uint32_t j = 0;
     while(ts_query_cursor_next_match(cursor, &cur_match)) {
         if(!strncmp(table
                     ,code.c_str() + ts_node_start_byte(cur_match.captures[0].node)
                     ,(ts_node_end_byte(cur_match.captures[0].node) - (ts_node_start_byte(cur_match.captures[0].node))))) {
-            node_color_map hl;
-            hl.node = cur_match.captures[0].node;
-            hl.color = PURPLE;
-            reflist[j] = hl;
-            j++;
-            debug_print_node_capture_info(j, cur_match.captures[0].node, code);
-            if(cur_match.capture_count > 1) {
-                node_color_map hl_alias;
-                hl_alias.node = cur_match.captures[1].node;
-                hl_alias.color = RED;
-                debug_print_node_capture_info(j, cur_match.captures[1].node, code);
-                reflist[j] = hl_alias;
-                j++;
-            }
+            reflist.push_front(cur_match.captures[0].node);
         }
     }
-    printf("relation references to %s: %i\n", table, j);
-    std::string ret = format_term_highlights(code, reflist, j);
-    printf("returned from format_term_highlights\n");
-    printf("%s", ret.c_str());
+    printf("relation references to %s: %i\n", table, reflist.size());
     ts_query_cursor_delete(cursor);
     ts_query_delete(table_references);
-    return;
+    return reflist;
 }
 
-void highlight_references_from_table(TSTree * tree, std::string code, const char * table) {
+std::list<TSNode> references_from_table(TSTree * tree, std::string code, const char * table) {
     TSQueryCursor * cursor = ts_query_cursor_new();
     uint32_t q_error_offset;
     TSQueryError q_error;
@@ -260,9 +270,9 @@ void highlight_references_from_table(TSTree * tree, std::string code, const char
         if(!strncmp(table
                     ,code.c_str() + ts_node_start_byte(cur_match.captures[0].node)
                     ,(ts_node_end_byte(cur_match.captures[0].node) - ts_node_start_byte(cur_match.captures[0].node)))) {
-                        printf("FOUND THE CORRECT DDL: %.*s\n"
+                        /*printf("FOUND THE CORRECT DDL: %.*s\n"
                             ,(ts_node_end_byte(cur_match.captures[0].node) - ts_node_start_byte(cur_match.captures[0].node))
-                            ,code.c_str() + ts_node_start_byte(cur_match.captures[0].node));
+                            ,code.c_str() + ts_node_start_byte(cur_match.captures[0].node));*/
                         printf("%i\n", j);
                         printf("%s\n", ts_node_string(ts_node_parent(cur_match.captures[0].node)));
                         break;
@@ -275,45 +285,67 @@ void highlight_references_from_table(TSTree * tree, std::string code, const char
 
     TSQuery * table_names_q = ts_query_new(
         tree_sitter_sql(),
-        "(relation ( object_reference schema: (identifier)? name: (identifier)) @reference alias: (identifier) @alias )",
-        110,
+        "(relation ( object_reference schema: (identifier)? name: (identifier)) @reference alias: (identifier)? @alias )",
+        111,
         &q_error_offset,
         &q_error
     );
+
+    std::list<TSNode> reflist;
+
     // this limits it to all of the direct from / joined tables (no CTEs / subqueries)
     ts_query_cursor_set_max_start_depth(cursor, 4);
     ts_query_cursor_exec(cursor, table_names_q, node);
-    printf("exec-ed\n");
-    int nodes;
-    while(ts_query_cursor_next_match(cursor, &cur_match))
-        nodes += cur_match.capture_count;
-    node_color_map * table_refs = (node_color_map *) malloc(sizeof(node_color_map) * nodes);
-    ts_query_cursor_exec(cursor, table_names_q, node);
-    int i = 0;
     while(ts_query_cursor_next_match(cursor, &cur_match)) {
-        printf("capture count: %i (2 would mean alias captured)\n", cur_match.capture_count);
-        node_color_map c;
-        c.node = cur_match.captures[0].node;
-        c.color = PURPLE;
-        table_refs[i] = c;
-        i++;
-        if(cur_match.capture_count > 1) {
-            node_color_map a;
-            a.node = cur_match.captures[1].node;
-            a.color = RED;
-            table_refs[i] = a;
-            i++;
-        }
+        reflist.push_front(cur_match.captures[0].node);
     }
-    std::string f = format_term_highlights(code, table_refs, i);
-    printf("%s", f.c_str());
 
-    free(table_refs);
     ts_query_cursor_delete(cursor);
     ts_query_delete(table_names_q);
     ts_query_delete(create_table_q);
-    return;
+    return reflist;
 }
+
+// returns all tables which are downstream of the requested table
+std::list<TSNode> tables_downstream_of_table(TSTree * tree, std::string code, const char * table) {
+    // TODO: need to change references to and from to return lists of nodes instead of
+    // void and highlight - the issue is the highlighting gets both reference and alias in
+    // one go, so we need to figure out how to split that...
+    
+    // need to decide if convention in this app is to pass references to relations around
+    // by their tightest node handle (just the table) or the handle for the table *and* the
+    // alias. Space wise it's a wash
+
+    // I kind of like the idea of always passing the aliases too and then having a conversion
+    // between a list of ref nodes with aliases to a list of node_color_maps
+    std::list<TSNode> reflist;
+    std::list<TSNode> dfs = references_to_table(tree, code, table);
+    while(dfs.size() > 0) {
+        const char * table = node_to_string(code.c_str(), dfs.front());
+        TSNode next_table = ts_node_parent(dfs.front());
+        //printf("iterating upwards:\tlooking for symbol id: %i\t%s\n", create_table_symbol, ts_language_symbol_name(tree_sitter_sql(), ts_node_symbol(next_table)));
+        //TSSymbol create_table_symbol = ts_language_symbol_for_name(tree_sitter_sql(), "create_table", 12, false);
+        // hard-coding this in after printing it out. Confused why ts_language_symbol_for_name isn't working
+        while( ts_node_symbol(next_table) != 478 ) {
+            printf("iterating upwards:\tsymbol id: %i\t%s\n", ts_node_symbol(next_table), ts_language_symbol_name(tree_sitter_sql(), ts_node_symbol(next_table)));
+            next_table = ts_node_parent(next_table);
+        }
+        // tree structure of a create_table statement:
+        // (create_table (keyword_create) (keyword_table) (object_reference schema: (identifier)? name: (identifier)) @definition)
+        // we want the object_reference part
+        next_table = ts_node_child(next_table, 2);
+        // this returns the create_table DDL for each of the downstream tables
+        reflist.push_front(next_table);
+        printf("looking for references to %s, next DDL to search: %s\n", table,  node_to_string(code.c_str(), next_table));
+        std::list<TSNode> next_up = references_to_table(tree, code, node_to_string(code.c_str(), next_table));
+        dfs.pop_front();
+        reflist.merge(next_up, node_compare);
+        dfs.merge(next_up, node_compare);
+    }
+    printf("# downstream tables: %i\n", reflist.size());
+    return reflist;
+}
+
 
 int main(int argc, char ** argv) {
     std::string files = "ALL";
@@ -341,10 +373,6 @@ int main(int argc, char ** argv) {
     uint32_t q_error_offset;
     TSQueryError q_error;
     TSQueryMatch cur_match;
-    // this isn't reused
-    char * table;
-    TSQuery * cli_query;
-    char q [250];
 
     if(argc > 2) {
         // show either DDL or references for a table
@@ -352,6 +380,7 @@ int main(int argc, char ** argv) {
             printf("used wrong"); // had a \n. REMOVED IT (yeah yeah)
             exit(1);
         }
+
         // what does "DDL" mean?
         if(!strcmp(argv[3], "ddl")) {
             printf("DDL not implemented");
@@ -361,60 +390,48 @@ int main(int argc, char ** argv) {
             if(!strcmp(argv[4], "--to")) {
                 printf("in TO references\n");
                 // all places this table is referenced
-                table = (char *) malloc(strlen(argv[5]));
-                strcpy(table, argv[5]);
-                snprintf(q, 85, "(relation ((object_reference schema: (identifier)? name: (identifier)) @reference ))");
-                printf("to query: %s\n", q);
-                printf("the following tables reference %s\n", table);
-                highlight_references_to_table(tree, all_sqls, (const char *) table);
+                printf("the following tables reference %s\n", argv[5]);
+                std::list<TSNode> to_reflist = references_to_table(tree, all_sqls, argv[5]);
+                to_reflist.sort(node_compare);
+                node_color_map_list * to_highlights = reflist_to_highlights(to_reflist);
+                printf("%s\n", format_term_highlights(all_sqls, to_highlights).c_str());
+                free(to_highlights->ncms);
             } else if (!strcmp(argv[4], "--from")) {
                 printf("in FROM references\n");
                 // all tables this table references 
-                table = (char *) malloc(strlen(argv[5]));
-                strcpy(table, argv[5]);
-                snprintf(q, 203, "(create_table (keyword_create) (keyword_table) (object_reference schema: (identifier)? name: (identifier))@create_name\
-(relation ((object_reference schema: (identifier) name: (identifier))@reference ) ))");
-                printf("from query: %s\n", q);
-                highlight_references_from_table(tree, all_sqls, (const char *) table);
+                printf("the following tables are referenced from %s\n", argv[5]);
+                std::list<TSNode> from_reflist = references_from_table(tree, all_sqls, argv[5]);
+                from_reflist.sort(node_compare);
+                node_color_map_list * from_highlights = reflist_to_highlights(from_reflist);
+                std::string ret = format_term_highlights(all_sqls, from_highlights);
+                printf("highlights formatted\n");
+                printf("%s\n", ret.c_str());
+                free(from_highlights->ncms);
+                fprintf(stderr, "after printing full code\n");
+            }
+        } else if (!strcmp(argv[3], "downstream")) {
+            if (argc != 6) { printf("used wrong"); exit(1); }
+            if (!strcmp(argv[4], "--of")) {
+                printf("in downstream of\n");
+                std::list<TSNode> downstream_reflist = tables_downstream_of_table(tree, all_sqls, argv[5]);
+                downstream_reflist.sort(node_compare);
+                node_color_map_list * downstream_highlights = reflist_to_highlights(downstream_reflist);
+                printf("%s\n", format_term_highlights(all_sqls, downstream_highlights).c_str());
+                free(downstream_highlights->ncms);
+            } else {
+                printf("used wrong"); exit(1);
             }
         }
-
-        cli_query = ts_query_new(tree_sitter_sql(), q, strlen(q), &q_error_offset, &q_error);
-        ts_query_cursor_exec(cursor, cli_query, ts_tree_root_node(tree));
-        //printf("exec-ed\n");
-        int n = 0;
-        while(ts_query_cursor_next_match(cursor, &cur_match)) { n += cur_match.capture_count; }
-        // since TS predicates don't work we have to overallocate
-        TSNode * capture_nodes = (TSNode *) malloc(sizeof(TSNode) * n);
-        ts_query_cursor_exec(cursor, cli_query, ts_tree_root_node(tree));
-        // don't know why they have capture count if it's just straight wrong... :/
-        // this process is a massive computational waste
-        n = 0;
-        fprintf(stderr, "n reset: %i ", n);
-        while(ts_query_cursor_next_match(cursor, &cur_match)) {
-            //fprintf(stderr, "num captures (2 would mean create and ref) %i\n", cur_match.capture_count);
-            for(int i = 0; i < cur_match.capture_count; i++) {
-/*                if(substrcmp(table
-                            ,all_sqls.c_str() + ts_node_start_byte(cur_match.captures[i].node)
-                            ,(ts_node_end_byte(cur_match.captures[i].node) - ts_node_start_byte(cur_match.captures[i].node)))) {*/
-                    capture_nodes[n] = cur_match.captures[i].node;
-                    n++;
-                //}
-            }
-        }
-        fprintf(stderr, "n: %i ", n);
-        //print_highlights_to_term(all_sqls, capture_nodes, n);
-        free(capture_nodes);
-
-        ts_query_delete(cli_query);
+        fprintf(stderr, "still handling args\n");
     }
 
+    fprintf(stderr, "back in body of main\n");
 
     //std::cout << all_sqls;
 
     const char * q1 = "(relation ( object_reference schema: (identifier)? name: (identifier)) @reference alias: (identifier) @alias )";
     //const char * q1 = "(relation ( ( object_reference schema: (identifier)? name: (identifier)) @reference ))";
-    //printf("q1 assigned\n");
+    printf("q1 assigned\n");
 
     fprintf(stderr, "query : %s\n", q1);
 
@@ -440,8 +457,6 @@ int main(int argc, char ** argv) {
             printf("[%2d:%-2d - %2d:%-2d] ", start.row, start.column, end.row, end.column);
             int len = start.column - end.column;
             debug_print_node_capture_info(cur_match.id, cur_match.captures[i].node, all_sqls);
-            //snprintf(q, "insert into table_refs values (%i, %s);", start.column - end.column, all_sqls + start);
-            //con.Query(q);
         }
         //fprintf(stderr, "after print in loop\n");
     }

@@ -40,7 +40,12 @@ create table dag.new_table as (
 
 create table dag.another as (
     select e.*, count(l.id)
-    from etl.employee e
+    from etl.employee
     left join etl.leads l on (l.owner_id = e.id)
     group by e.*
 );
+
+create table dag.anonymized as (
+    select cust_nm, num_leads
+    from dag.new_table
+)
