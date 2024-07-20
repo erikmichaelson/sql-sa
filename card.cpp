@@ -167,54 +167,135 @@ TSNode parent_context(TSPoint clicked) {
     return clicked;
 }*/
 
-std::list<TSNode> expand_select_star(TSNode star_node, const char * source);
-
-std::list<TSNode> result_columns_for_ddl(TSNode ddl, const char * source) {
-    const char * q = "(select_statement: (select (term: [(identifier) (all_fields)] @fieldname)))";
+// gets the object_reference node for the create table statement for a table
+// returns the root node of the program if the exact table name searched for isn't found
+TSNode create_table_node_for_table_name(const TSTree * tree, std::string code, const char * table){
     TSQueryCursor * cursor = ts_query_cursor_new();
     uint32_t q_error_offset;
     TSQueryError q_error;
-    TSQuery * selection_q = ts_query_new(tree_sitter_sql(), q, 54, &q_error_offset, &q_error);
-    ts_query_cursor_exec(cursor, selection_q, ts_tree_root_node(ddl.tree));
-    std::list<TSNode> field_list;
+    TSQueryMatch cur_match;
+    // reusing error offsets and cursors from before
+    TSQuery * create_table_q = ts_query_new(
+        tree_sitter_sql(),
+        "(create_table (keyword_create) (keyword_table) (object_reference schema: (identifier)? name: (identifier)) @definition)",
+        119,
+        &q_error_offset,
+        &q_error
+    );
+    int found = 0;
+    ts_query_cursor_exec(cursor, create_table_q, ts_tree_root_node(tree));
+    while(ts_query_cursor_next_match(cursor, &cur_match)) {
+        if(!strncmp(table
+                    ,code.c_str() + ts_node_start_byte(cur_match.captures[0].node)
+                    ,(ts_node_end_byte(cur_match.captures[0].node) - ts_node_start_byte(cur_match.captures[0].node)))) {
+                        found = 1;
+                        break;
+                    }
+    }
+
+    if (!found)
+        return ts_tree_root_node(tree);
+    printf("after the earthquake (DDL drizzy found)\n");
+    TSNode ret = cur_match.captures[0].node; 
+    ts_query_cursor_delete(cursor);
+    ts_query_delete(create_table_q);
+    return ret;
+}
+
+
+std::list<TSNode> expand_select_star(TSNode star_node, const char * source);
+
+// takes a TSNode at a "create_table" node, returns a list of column names
+std::list<TSNode> result_columns_for_ddl(TSNode ddl, const char * source) {
+    std::list<TSNode> ret;
+    char q[121];
+    TSNode ddl_body = ddl;
+    int i = 0;
+    while(i < ts_node_child_count(ts_node_parent(ddl))) {
+        fprintf(stderr, "ts_node_symbol: %s (id: %i)\n", ts_language_symbol_name(tree_sitter_sql(), ts_node_symbol(ddl_body)), ts_node_symbol(ddl_body));
+        if(ts_node_symbol(ddl_body) == 482) {
+            strcpy(q, "(select (select_expression (term [value: (field . name: (identifier) . ) alias: (identifier) (all_fields)] @fieldname)))");
+            break;
+        }
+        else if(ts_node_symbol(ddl_body) == 577) {
+            strcpy(q, "(column_definitions (column_definition name: (identifier) @col_def))");
+            break;
+        }
+        ddl_body = ts_node_next_sibling(ddl_body);
+        i++;
+    }
+    if(i == ts_node_child_count(ts_node_parent(ddl))) {
+        printf("ERROR: ddl node doesn't have a create_query or column_definitions child node\n");
+        exit(1);
+    }
+    // handle the case that this is a straight up list of columns not create_query
+    fprintf(stderr, "looking for columns in this tree:\n%s\n", ts_node_string(ts_node_parent(ddl)));
+    TSQueryCursor * cursor = ts_query_cursor_new();
+    uint32_t q_error_offset;
+    TSQueryError q_error;
+    TSQuery * selection_q = ts_query_new(tree_sitter_sql(), q, strlen(q), &q_error_offset, &q_error);
+    ts_query_cursor_exec(cursor, selection_q, ts_node_parent(ddl));
+    printf("exec-ed\n");
     TSQueryMatch cur_match;
     while(ts_query_cursor_next_match(cursor, &cur_match)) {
-        if(!strcmp(ts_node_field_name_for_child(cur_match.captures[0].node, 0), "all_fields"))
-            field_list.merge(expand_select_star(cur_match.captures[0].node, source), node_compare);
-        field_list.push_front(cur_match.captures[0].node);
+        fprintf(stderr, "cursor iterating");
+        fprintf(stderr, "ts_node_symbol: %s (id: %i)\n", ts_language_symbol_name(tree_sitter_sql(), ts_node_symbol(cur_match.captures[0].node)), ts_node_symbol(cur_match.captures[0].node));
+        if(ts_node_symbol(cur_match.captures[0].node) == 590)
+            ret.merge(expand_select_star(cur_match.captures[0].node, source), node_compare);
+        else
+            ret.push_front(cur_match.captures[0].node);
     }
-    return field_list;
+    fprintf(stderr, "done iterating\n");
+    return ret;
 }
 
 // todo: write ts_node_text_equals(TSNode n, const char * c)
 // OR figure out how their query predicates work
 
 std::list<TSNode> expand_select_star(TSNode star_node, const char * source) {
+    fprintf(stderr, "in expand select star. star_node children: %i\nstar_node: %s", ts_node_child_count(star_node), ts_node_string(star_node));
     std::list<TSNode> field_list;
-    const char * reference = node_to_string(source, ts_node_child(ts_node_child(star_node, 0), 0));
-    while(strcmp(ts_node_field_name_for_child(star_node, 0), "select"))
+    const char * reference = "-1";
+    if(ts_node_child_count(star_node) > 1)
+        reference = node_to_string(source, ts_node_child(ts_node_child(star_node, 0), 0));
+        fprintf(stderr, "table specifier on select all\n");
+    fprintf(stderr, "ts_node_symbol: %s (id: %i) reference: %s. ref len = %i\n"
+            ,ts_language_symbol_name(tree_sitter_sql(), ts_node_symbol(star_node)), ts_node_symbol(star_node), reference, strlen(reference));
+    // "select" node id is 
+    while(ts_node_symbol(star_node) != 482) {
+        fprintf(stderr, "ts_node_symbol: %s (id: %i)\n", ts_language_symbol_name(tree_sitter_sql(), ts_node_symbol(star_node)), ts_node_symbol(star_node));
         star_node = ts_node_parent(star_node);
+    }
     TSQueryError q_error;
     uint32_t q_error_offset;
     const char * q = "(relation (object_reference schema: (identifier)? name: (identifier)) @table alias: (identifier) @alias)";
-    TSQuery * references = ts_query_new(tree_sitter_sql(), q, 105, &q_error_offset, &q_error);
+    TSQuery * references_q = ts_query_new(tree_sitter_sql(), q, 104, &q_error_offset, &q_error);
     TSQueryCursor * cursor = ts_query_cursor_new();
-    ts_query_cursor_exec(cursor, references, star_node);
+    ts_query_cursor_exec(cursor, references_q, star_node);
+    fprintf(stderr, "exec-ed\n");
     TSQueryMatch cur_match;
+    std::string ssource = source;
+    int i = 0;
     while(ts_query_cursor_next_match(cursor, &cur_match)) {
+        TSNode ddl_node = create_table_node_for_table_name(star_node.tree, ssource, node_to_string(source, cur_match.captures[0].node));
+        fprintf(stderr, "match %i: %s , %s\n", i, node_to_string(source, cur_match.captures[0].node), node_to_string(source, cur_match.captures[1].node));
         // first predicate should only happen if all cols from all tables are selected
-        if(ts_node_child_count(star_node) == 1) {
-            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node, source), node_compare);
+        if(!strcmp("-1", reference)) {
+            field_list.merge(result_columns_for_ddl(ddl_node, source), node_compare);
+            fprintf(stderr, "merging field list:\n");
         // the full table matched
-        } else if(!strcmp(source + ts_node_start_byte(cur_match.captures[0].node), reference)) {
-            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node, source), node_compare);
+        } else if(!strncmp(source + ts_node_start_byte(cur_match.captures[0].node), reference, strlen(reference))) {
+            fprintf(stderr, "matched full table name: %s:\n", reference);
+            field_list.merge(result_columns_for_ddl(ddl_node, source), node_compare);
             // if the reference before the * was an alias that matches this alias, get all of the fields
             // from the associated table
-        } else if(!strcmp(source + ts_node_start_byte(cur_match.captures[1].node), reference))
-            field_list.merge(result_columns_for_ddl(cur_match.captures[0].node, source), node_compare);
-
+        } else if(!strncmp(source + ts_node_start_byte(cur_match.captures[1].node), reference, strlen(reference))) {
+            fprintf(stderr, "matched table alias: %s:\n", reference);
+            field_list.merge(result_columns_for_ddl(ddl_node, source), node_compare);
+        }
+        i++;
     }
-    free(references);
+    free(references_q);
     return field_list;
 }
 
@@ -230,10 +311,6 @@ std::list<TSNode> references_to_table(TSTree * tree, std::string code, const cha
         &q_error_offset,
         &q_error
     );
-    ts_query_cursor_exec(cursor, table_references, ts_tree_root_node(tree));
-    int all_references_count;
-    while(ts_query_cursor_next_match(cursor, &cur_match)) { all_references_count++; }
-    printf("relation references with aliases: %i\n", all_references_count);
     // bc each of these can have two captures - node and alias - we need to pre-alloc twice the space
     std::list<TSNode> reflist;
 
@@ -256,7 +333,7 @@ std::list<TSNode> references_from_table(TSTree * tree, std::string code, const c
     uint32_t q_error_offset;
     TSQueryError q_error;
     TSQueryMatch cur_match;
-    // reusing error offsets and cursors from before
+    /*
     TSQuery * create_table_q = ts_query_new(
         tree_sitter_sql(),
         "(create_table (keyword_create) (keyword_table) (object_reference schema: (identifier)? name: (identifier)) @definition)",
@@ -270,18 +347,17 @@ std::list<TSNode> references_from_table(TSTree * tree, std::string code, const c
         if(!strncmp(table
                     ,code.c_str() + ts_node_start_byte(cur_match.captures[0].node)
                     ,(ts_node_end_byte(cur_match.captures[0].node) - ts_node_start_byte(cur_match.captures[0].node)))) {
-                        /*printf("FOUND THE CORRECT DDL: %.*s\n"
                             ,(ts_node_end_byte(cur_match.captures[0].node) - ts_node_start_byte(cur_match.captures[0].node))
-                            ,code.c_str() + ts_node_start_byte(cur_match.captures[0].node));*/
+                            ,code.c_str() + ts_node_start_byte(cur_match.captures[0].node));
                         printf("%i\n", j);
                         printf("%s\n", ts_node_string(ts_node_parent(cur_match.captures[0].node)));
                         break;
                     }
         j++;
     }
-    printf("%i\n %s\n", j, ts_node_string(cur_match.captures[0].node));
+    printf("%i\n %s\n", j, ts_node_string(cur_match.captures[0].node));*/
 
-    TSNode node = ts_node_parent(cur_match.captures[0].node);
+    TSNode node = ts_node_parent(create_table_node_for_table_name(tree, code, table));
 
     TSQuery * table_names_q = ts_query_new(
         tree_sitter_sql(),
@@ -302,7 +378,6 @@ std::list<TSNode> references_from_table(TSTree * tree, std::string code, const c
 
     ts_query_cursor_delete(cursor);
     ts_query_delete(table_names_q);
-    ts_query_delete(create_table_q);
     return reflist;
 }
 
@@ -321,8 +396,8 @@ std::list<TSNode> tables_downstream_of_table(TSTree * tree, std::string code, co
     std::list<TSNode> reflist;
     std::list<TSNode> dfs = references_to_table(tree, code, table);
     while(dfs.size() > 0) {
-        const char * table = node_to_string(code.c_str(), dfs.front());
-        TSNode next_table = ts_node_parent(dfs.front());
+        TSNode next_table = dfs.front();
+        dfs.pop_front();
         //printf("iterating upwards:\tlooking for symbol id: %i\t%s\n", create_table_symbol, ts_language_symbol_name(tree_sitter_sql(), ts_node_symbol(next_table)));
         //TSSymbol create_table_symbol = ts_language_symbol_for_name(tree_sitter_sql(), "create_table", 12, false);
         // hard-coding this in after printing it out. Confused why ts_language_symbol_for_name isn't working
@@ -334,12 +409,14 @@ std::list<TSNode> tables_downstream_of_table(TSTree * tree, std::string code, co
         // (create_table (keyword_create) (keyword_table) (object_reference schema: (identifier)? name: (identifier)) @definition)
         // we want the object_reference part
         next_table = ts_node_child(next_table, 2);
+        fprintf(stderr, "found node second child\n");
         // this returns the create_table DDL for each of the downstream tables
         reflist.push_front(next_table);
-        printf("looking for references to %s, next DDL to search: %s\n", table,  node_to_string(code.c_str(), next_table));
+        //fprintf(stderr, "looking for references to %s, next DDL to search: %s\n", node_to_string(code.c_str(), dfs.front()),  node_to_string(code.c_str(), next_table));
         std::list<TSNode> next_up = references_to_table(tree, code, node_to_string(code.c_str(), next_table));
-        dfs.pop_front();
-        reflist.merge(next_up, node_compare);
+        // so turns out LIST1.merge(LIST2) is not a "pure function" - it deletes everything from LIST2
+        // good news is merging with reflist wasn't even logically accurate - we add highlights when we 
+        // get them by the create_table handle, not what's returned from refs_to_table, which is object_reference nodes
         dfs.merge(next_up, node_compare);
     }
     printf("# downstream tables: %i\n", reflist.size());
@@ -420,6 +497,25 @@ int main(int argc, char ** argv) {
                 free(downstream_highlights->ncms);
             } else {
                 printf("used wrong"); exit(1);
+            }
+        } else if (!strcmp(argv[3], "fields")) {
+            if (argc != 6) { printf("used wrong"); exit(1); }
+            if (!strcmp(argv[4], "--in")) {
+                // this is completely copied... code to get DDL node for a table give table name string. Should be a function
+                TSNode ddl_node = create_table_node_for_table_name(tree, all_sqls, argv[5]);
+                if(ts_node_start_byte(ddl_node) == 0) {
+                    printf("ERROR: no table with the name '%s' exists\n", argv[5]);
+                    exit(1);
+                }
+                printf("create_table node: %s\n", node_to_string(all_sqls.c_str(), ddl_node));
+
+                std::list<TSNode> cols = result_columns_for_ddl(ddl_node, all_sqls.c_str());
+                printf("Columns in '%s' table:\n", argv[5]);
+                for(TSNode c : cols)
+                    printf("%s\n", node_to_string(all_sqls.c_str(), c));
+            } else {
+                printf("used wrong");
+                exit(1);
             }
         }
         fprintf(stderr, "still handling args\n");
