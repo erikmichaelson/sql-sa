@@ -35,12 +35,12 @@ create table dag.new_table as (
     select * 
     from etl.leads l
     left join cust_level c on l.cust_ssn = c.cust_ssn
-    left join (select s.start_dt, s.end_dt) from etl.salesmen s on (l.owner_id = s.id)) as tnaa
+    left join (select s.start_dt, s.end_dt from etl.salesmen s on (l.owner_id = s.id)) as tnaa
 );
 
 create table dag.another as (
     select e.*, count(l.id)
-    from etl.employee
+    from etl.employee e
     left join etl.leads l on (l.owner_id = e.id)
     group by e.*
 );
@@ -48,4 +48,20 @@ create table dag.another as (
 create table dag.anonymized as (
     select cust_nm, num_leads
     from dag.new_table
-)
+);
+
+create table dag.two_deep as (
+    select *
+    from dag.anonymized
+    limit 10
+);
+
+create table dag.completely_unrelated as (
+    select lead_id, min(updated), max(updated) from elt.snapshot group by lead_id 
+);
+
+create table dag.three_deep as (
+    select *
+    from dag.two_deep t
+    inner join dag.anonymized a on (t.id = a.id)
+);
