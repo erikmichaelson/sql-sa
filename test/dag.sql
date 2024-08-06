@@ -35,7 +35,7 @@ create table dag.new_table as (
     select * 
     from etl.leads l
     left join cust_level c on l.cust_ssn = c.cust_ssn
-    left join (select s.start_dt, s.end_dt from etl.salesmen s on (l.owner_id = s.id)) as tnaa
+    left join (select s.start_dt, s.end_dt from etl.salesmen s where l.owner_id = s.id) as tnaa
 );
 
 create table dag.another as (
