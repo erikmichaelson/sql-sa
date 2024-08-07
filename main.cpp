@@ -46,20 +46,20 @@ int main(int argc, char ** argv) {
                 printf("the following tables reference %s\n", argv[5]);
                 std::list<TSNode> to_reflist = references_to_table(tree, all_sqls, argv[5]);
                 to_reflist.sort(node_compare);
-                node_color_map_list * to_highlights = reflist_to_highlights(to_reflist);
+                node_color_map_list to_highlights = reflist_to_highlights(to_reflist);
                 printf("%s\n", format_term_highlights(all_sqls, to_highlights).c_str());
-                free(to_highlights->ncms);
+                free(to_highlights.ncms);
             } else if (!strcmp(argv[4], "--from")) {
                 printf("in FROM references\n");
                 // all tables this table references 
                 printf("the following tables are referenced from %s\n", argv[5]);
                 std::list<TSNode> from_reflist = references_from_table(tree, all_sqls, argv[5]);
                 from_reflist.sort(node_compare);
-                node_color_map_list * from_highlights = reflist_to_highlights(from_reflist);
+                node_color_map_list from_highlights = reflist_to_highlights(from_reflist);
                 std::string ret = format_term_highlights(all_sqls, from_highlights);
                 printf("highlights formatted\n");
                 printf("%s\n", ret.c_str());
-                free(from_highlights->ncms);
+                free(from_highlights.ncms);
                 fprintf(stderr, "after printing full code\n");
             }
         } else if (!strcmp(argv[3], "downstream")) {
@@ -68,9 +68,9 @@ int main(int argc, char ** argv) {
                 printf("in downstream of\n");
                 std::list<TSNode> downstream_reflist = tables_downstream_of_table(tree, all_sqls, argv[5]);
                 downstream_reflist.sort(node_compare);
-                node_color_map_list * downstream_highlights = reflist_to_highlights(downstream_reflist);
+                node_color_map_list downstream_highlights = reflist_to_highlights(downstream_reflist);
                 printf("%s\n", format_term_highlights(all_sqls, downstream_highlights).c_str());
-                free(downstream_highlights->ncms);
+                free(downstream_highlights.ncms);
             } else {
                 printf("used wrong"); exit(1);
             }
@@ -98,48 +98,5 @@ int main(int argc, char ** argv) {
     }
 
     fprintf(stderr, "back in body of main\n");
-
-    //std::cout << all_sqls;
-
-    const char * q1 = "(relation ( object_reference schema: (identifier)? name: (identifier)) @reference alias: (identifier) @alias )";
-    //const char * q1 = "(relation ( ( object_reference schema: (identifier)? name: (identifier)) @reference ))";
-    printf("q1 assigned\n");
-
-    fprintf(stderr, "query : %s\n", q1);
-
-    TSQuery * table_names_q = ts_query_new(
-        tree_sitter_sql(),
-        q1,
-        strlen(q1),
-        &q_error_offset,
-        &q_error
-    );
-
-    ts_query_cursor_exec(cursor, table_names_q, ts_tree_root_node(tree));
-
-    std::string * table_names;
-    //fprintf(stderr, "before loop\n");
-    while(ts_query_cursor_next_match(cursor, &cur_match)) {
-        //fprintf(stderr, "in loop\n");
-        //printf("%s", ts_node_string(cur_match.captures[0].node));
-        table_names = (std::string *) malloc(sizeof(std::string) * cur_match.capture_count);
-        for(int i = 0; i < cur_match.capture_count; i++) {
-            TSPoint start = ts_node_start_point(cur_match.captures[i].node);
-            TSPoint end = ts_node_end_point(cur_match.captures[i].node);
-            printf("[%2d:%-2d - %2d:%-2d] ", start.row, start.column, end.row, end.column);
-            int len = start.column - end.column;
-            debug_print_node_capture_info(cur_match.id, cur_match.captures[i].node, all_sqls);
-        }
-        //fprintf(stderr, "after print in loop\n");
-    }
-    //fprintf(stderr, "after loop\n");
-
-    /* column checking
-    duckdb::ColumnRef c = duckdb::ColumnRef(
-    duckdb::Bind(
-    const char * table = "etl.snapshot";
-    */
-    ts_tree_delete(tree);
-    ts_parser_delete(parser);
     return 0;
 }
