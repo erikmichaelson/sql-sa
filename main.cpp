@@ -74,6 +74,18 @@ int main(int argc, char ** argv) {
             } else {
                 printf("used wrong"); exit(1);
             }
+        } else if (!strcmp(argv[3], "upstream")) {
+            if (argc != 6) { printf("used wrong"); exit(1); }
+            if (!strcmp(argv[4], "--of")) {
+                printf("in upstream of\n");
+                std::list<TSNode> upstream_reflist = tables_upstream_of_table(tree, all_sqls, argv[5]);
+                upstream_reflist.sort(node_compare);
+                node_color_map_list upstream_highlights = reflist_to_highlights(upstream_reflist);
+                printf("%s\n", format_term_highlights(all_sqls, upstream_highlights).c_str());
+                free(upstream_highlights.ncms);
+            } else {
+                printf("used wrong"); exit(1);
+            }
         } else if (!strcmp(argv[3], "fields")) {
             if (argc != 6) { printf("used wrong"); exit(1); }
             if (!strcmp(argv[4], "--in")) {

@@ -154,15 +154,23 @@ char * get_source_for_field(TSNode term_stmt) {
     while(term_stmt
     // TODO: unaliased (guessing / pseudo-catalog case)
 }
-
-TSNode parent_context(TSPoint clicked) {
-    // 482 = create_query, 460 = CTE, 628 = subuquery
-    while(ts_node_symbol(clicked) != 482 && ts_node_symbol(clicked) != 460 && ts_node_symbol(clicked) != 628)
-        clicked = ts_node_parent(clicked);
-    return clicked;
-    return 
-}
 */
+
+TSNode parent_context(TSTree * tree, TSPoint clicked) {
+    TSTreeCursor tc = ts_tree_cursor_new(ts_tree_root_node(tree));
+    ts_tree_cursor_goto_first_child_for_point(&tc, clicked);
+    TSNode n = ts_tree_cursor_current_node(&tc);
+    // 482 = create_query, 460 = CTE, 628 = subuquery
+    while(ts_tree_cursor_goto_parent(&tc)) {
+        n = ts_tree_cursor_current_node(&tc);
+        TSSymbol s = ts_node_symbol(n);
+        if(s == 482 || s == 460 || s == 628)
+            printf("row %i, cols %i-%i", ts_node_start_point(n).row, ts_node_start_point(n).column, ts_node_end_point(n).column);
+            break;
+    }
+    ts_tree_cursor_delete(&tc);
+    return n;
+}
 
 // gets the object_reference node for the create table statement for a table
 // returns the root node of the program if the exact table name searched for isn't found
@@ -214,6 +222,7 @@ std::list<TSNode> result_columns_for_ddl(TSNode ddl, const char * source) {
             strcpy(q, "(select (select_expression (term [value: (field . name: (identifier) . ) alias: (identifier) (all_fields)] @fieldname)))");
             break;
         }
+        // handle the case that this is a straight up list of columns not create_query
         else if(ts_node_symbol(ddl_body) == 577) {
             strcpy(q, "(column_definitions (column_definition name: (identifier) @col_def))");
             break;
@@ -225,14 +234,12 @@ std::list<TSNode> result_columns_for_ddl(TSNode ddl, const char * source) {
         printf("ERROR: ddl node doesn't have a create_query or column_definitions child node\n");
         exit(1);
     }
-    // handle the case that this is a straight up list of columns not create_query
     //fprintf(stderr, "looking for columns in this tree:\n%s\n", ts_node_string(ts_node_parent(ddl)));
     TSQueryCursor * cursor = ts_query_cursor_new();
     uint32_t q_error_offset;
     TSQueryError q_error;
     TSQuery * selection_q = ts_query_new(tree_sitter_sql(), q, strlen(q), &q_error_offset, &q_error);
     ts_query_cursor_exec(cursor, selection_q, ts_node_parent(ddl));
-    //printf("exec-ed\n");
     TSQueryMatch cur_match;
     while(ts_query_cursor_next_match(cursor, &cur_match)) {
         //fprintf(stderr, "cursor iterating");
@@ -242,6 +249,8 @@ std::list<TSNode> result_columns_for_ddl(TSNode ddl, const char * source) {
         else
             ret.push_front(cur_match.captures[0].node);
     }
+    ts_query_cursor_delete(cursor);
+    ts_query_delete(selection_q);
     //fprintf(stderr, "done iterating\n");
     return ret;
 }
@@ -357,16 +366,7 @@ std::list<TSNode> references_from_table(TSTree * tree, std::string code, const c
 
 // returns all tables which are downstream of the requested table
 std::list<TSNode> tables_downstream_of_table(TSTree * tree, std::string code, const char * table) {
-    // TODO: need to change references to and from to return lists of nodes instead of
-    // void and highlight - the issue is the highlighting gets both reference and alias in
-    // one go, so we need to figure out how to split that...
-    
-    // need to decide if convention in this app is to pass references to relations around
-    // by their tightest node handle (just the table) or the handle for the table *and* the
-    // alias. Space wise it's a wash
-
-    // I kind of like the idea of always passing the aliases too and then having a conversion
-    // between a list of ref nodes with aliases to a list of node_color_maps
+    // TODO: done. See old commits for thought process
     std::list<TSNode> reflist;
     std::list<TSNode> dfs = references_to_table(tree, code, table);
     while(dfs.size() > 0) {
@@ -391,6 +391,23 @@ std::list<TSNode> tables_downstream_of_table(TSTree * tree, std::string code, co
         // get them by the create_table handle, not what's returned from refs_to_table, which is object_reference nodes
         dfs.merge(next_up, node_compare);
     }
+    return reflist;
+}
+
+std::list<TSNode> tables_upstream_of_table(TSTree * tree, std::string code, const char * table) {
+    std::list<TSNode> reflist;
+    std::list<TSNode> dfs = references_from_table(tree, code, table);
+    while(dfs.size() > 0) {
+        TSNode next_table = dfs.front();
+        dfs.pop_front();
+        reflist.push_front(next_table);
+        fprintf(stderr, "Everything but merging. Node: %s\n", node_to_string(code.c_str(), next_table));
+        std::list<TSNode> refs = references_from_table(tree, code, node_to_string(code.c_str(), next_table));
+        if(refs.size())
+            dfs.merge(refs, node_compare);
+        fprintf(stderr, "Merged\n");
+    }
+    fprintf(stderr, "Returning from upstream of\n");
     return reflist;
 }
 
@@ -494,6 +511,34 @@ extern "C" {
         return ret;
     }
 
+    cd_nodelist tables_upstream_of_table_c(const char * code, const char * table) {
+        cd_nodelist ret;
+        std::string _code = code;
+        TSParser * parser = ts_parser_new();
+        ts_parser_set_language(parser, tree_sitter_sql());
+        TSTree * tree = ts_parser_parse_string(
+            parser,
+            NULL,
+            code,
+            strlen(code)
+        );
+
+        std::list<TSNode> res = tables_upstream_of_table(tree, _code, table);
+        ret.points = (int *)malloc(sizeof(int) * 3 * res.size());
+        int i = 0;
+        for(TSNode n: res) {
+            ret.points[(i * 3) + 0] = ts_node_start_point(n).row;
+            ret.points[(i * 3) + 1] = ts_node_start_point(n).column;
+            ret.points[(i * 3) + 2] =   ts_node_end_point(n).column;
+            i++;
+        }
+        ret.size = i;
+
+        ts_tree_delete(tree);
+        ts_parser_delete(parser);
+        return ret;
+    }
+
     typedef struct {
         char ** fields;
         int     size;
@@ -525,6 +570,29 @@ extern "C" {
             i++;
         }
         ret.size = i;
+
+        ts_tree_delete(tree);
+        ts_parser_delete(parser);
+        return ret;
+    }
+
+    // do the dumb recalc the tree thing again
+    cd_nodelist parent_context_c(const char * code, TSPoint clicked) {
+        cd_nodelist ret;
+        TSParser * parser = ts_parser_new();
+        ts_parser_set_language(parser, tree_sitter_sql());
+        TSTree * tree = ts_parser_parse_string(
+            parser,
+            NULL,
+            code,
+            strlen(code)
+        );
+        TSNode n = parent_context(tree, clicked);
+        ret.points = (int *)malloc(sizeof(int) * 3);
+        ret.points[0] = ts_node_start_point(n).row;
+        ret.points[1] = ts_node_start_point(n).column;
+        ret.points[2] =   ts_node_end_point(n).column;
+        ret.size = 1;
 
         ts_tree_delete(tree);
         ts_parser_delete(parser);
