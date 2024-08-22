@@ -29,7 +29,8 @@ ffi.cdef[[
     cd_nodelist references_from_table_c(const char * source, const char * table);
     cd_nodelist references_to_table_c(const char * source, const char * table);
     cd_nodelist tables_downstream_of_table_c(const char * source, const char * table);
-    cd_nodelist tables_upstream_of_table_c(const char * source, const char * table);
+    cd_nodelist contexts_upstream_of_context_c(const char * source, const char * table
+                                                ,int row, int col);
 
     typedef struct { char ** fields; int size; } cd_stringlist;
     cd_stringlist result_columns_for_table_c(const char * source, const char * table);
@@ -50,7 +51,7 @@ cns = api.nvim_create_namespace('card')
 -- must be called from Neovim obv so there's a point to be found
 function highlight_card_parent_context()
     local point = ffi.new('TSPoint[1]')
-    point[0].row    = api.nvim_win_get_cursor(0)[1]
+    point[0].row    = api.nvim_win_get_cursor(0)[1] - 1
     point[0].column = api.nvim_win_get_cursor(0)[2]
     --print(point[0].row..', '..point[0].column)
     local source = api.nvim_buf_get_lines(0, 0, -1, true)
@@ -112,13 +113,13 @@ function highlight_card_downstream_of_table(table_name)
     end
 end
 
-function highlight_card_upstream_of_table(table_name)
+function highlight_card_upstream_of_context(context_name, row, col)
     api.nvim_buf_clear_namespace(0, cns, 0, -1)
     vim.cmd('syntax off')
     local source = api.nvim_buf_get_lines(0, 0, -1, true)
     source = table.concat(source, "\n")
     local points = ffi.new("cd_nodelist[1]")
-    points = card.tables_upstream_of_table_c(source, table_name)
+    points = card.contexts_upstream_of_context_c(source, table_name, row, col)
     for p = 0, (points.size - 1) do
         api.nvim_buf_add_highlight(0, cns, 'WildMenu'
             ,tonumber(points.points[(p * 3) + 0])
@@ -128,8 +129,8 @@ function highlight_card_upstream_of_table(table_name)
 end
 
 function print_card_columns_in_table(table_name)
-    api.nvim_buf_clear_namespace(0, cns, 0, -1)
-    vim.cmd('syntax off')
+    -- api.nvim_buf_clear_namespace(0, cns, 0, -1)
+    -- vim.cmd('syntax off')
     local source = api.nvim_buf_get_lines(0, 0, -1, true)
     source = table.concat(source, "\n")
     local fields = ffi.new("cd_stringlist[1]")
@@ -152,7 +153,8 @@ vim.keymap.set('v', '<Leader>f'
 vim.keymap.set('v', '<Leader>j'
     ,':lua highlight_card_downstream_of_table(get_visual_selection())<CR>')
 vim.keymap.set('v', '<Leader>k'
-    ,':lua highlight_card_upstream_of_table(get_visual_selection())<CR>')
+    ,':lua highlight_card_upstream_of_context(get_visual_selection(), vim.fn.getpos("\'<")[2], vim.fn.getpos("\'<")[1])<CR>')
+vim.keymap.set('n', '<Leader>p',':lua highlight_card_parent_context()<CR>')
 vim.keymap.set('n', '<Leader>r', ':lua card_reset()<CR>')
 
 print "try 'highlight_card_references_from_table(table_name)' "

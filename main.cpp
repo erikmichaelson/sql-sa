@@ -17,6 +17,7 @@ int main(int argc, char ** argv) {
         all_sqls.c_str(),
         strlen(all_sqls.c_str())
     );
+    printf("root symbol: %i", ts_node_symbol(ts_tree_root_node(tree)));
     //FILE * dg = fopen("dotgraph.dot", "w");
     //ts_tree_print_dot_graph(tree, fileno(dg));
     //printf("parsed root: %s\n", ts_node_string(ts_tree_root_node(tree)));
@@ -53,7 +54,7 @@ int main(int argc, char ** argv) {
                 printf("in FROM references\n");
                 // all tables this table references 
                 printf("the following tables are referenced from %s\n", argv[5]);
-                std::list<TSNode> from_reflist = references_from_table(tree, all_sqls, argv[5]);
+                std::list<TSNode> from_reflist = references_from_context(tree, all_sqls, ts_tree_root_node(tree), argv[5]);
                 from_reflist.sort(node_compare);
                 node_color_map_list from_highlights = reflist_to_highlights(from_reflist);
                 std::string ret = format_term_highlights(all_sqls, from_highlights);
@@ -78,7 +79,7 @@ int main(int argc, char ** argv) {
             if (argc != 6) { printf("used wrong"); exit(1); }
             if (!strcmp(argv[4], "--of")) {
                 printf("in upstream of\n");
-                std::list<TSNode> upstream_reflist = tables_upstream_of_table(tree, all_sqls, argv[5]);
+                std::list<TSNode> upstream_reflist = contexts_upstream_of_context(tree, all_sqls, ts_tree_root_node(tree), argv[5]);
                 upstream_reflist.sort(node_compare);
                 node_color_map_list upstream_highlights = reflist_to_highlights(upstream_reflist);
                 printf("%s\n", format_term_highlights(all_sqls, upstream_highlights).c_str());
@@ -90,7 +91,7 @@ int main(int argc, char ** argv) {
             if (argc != 6) { printf("used wrong"); exit(1); }
             if (!strcmp(argv[4], "--in")) {
                 // this is completely copied... code to get DDL node for a table give table name string. Should be a function
-                TSNode ddl_node = create_table_node_for_table_name(tree, all_sqls, argv[5]);
+                TSNode ddl_node = context_definition(tree, all_sqls, ts_tree_root_node(tree), argv[5]);
                 if(ts_node_start_byte(ddl_node) == 0) {
                     printf("ERROR: no table with the name '%s' exists\n", argv[5]);
                     exit(1);
@@ -104,6 +105,26 @@ int main(int argc, char ** argv) {
             } else {
                 printf("used wrong");
                 exit(1);
+            }
+        } else if (!strcmp(argv[3], "parentcontext")) {
+            if (argc != 6) { printf("used wrong"); exit(1); }
+            if (!strcmp(argv[4], "--at")) {
+                TSPoint p;
+                char * str = argv[5];
+                p.row = 59;//std::stoi(strtok(str, ","));
+                p.column = 4;//std::stoi(strtok(str, ","));
+                fprintf(stderr, "point: %i:%i\n", p.row, p.column);
+                TSNode ret = parent_context(tree, p);
+                //fprintf(stderr, "PARENT CONTEXT:\n%s", node_to_string(all_sqls.c_str(), ret));
+                node_color_map n;
+                n.node = ret;
+                n.color = PURPLE;
+
+                node_color_map_list ncm;
+                ncm.length = 1;
+                ncm.ncms = (node_color_map *)malloc(sizeof(node_color_map));
+                ncm.ncms[0] = n;
+                printf("\n%s\n", format_term_highlights(all_sqls, ncm).c_str());
             }
         }
         fprintf(stderr, "still handling args\n");

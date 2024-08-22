@@ -157,51 +157,85 @@ char * get_source_for_field(TSNode term_stmt) {
 */
 
 TSNode parent_context(TSTree * tree, TSPoint clicked) {
-    TSTreeCursor tc = ts_tree_cursor_new(ts_tree_root_node(tree));
-    ts_tree_cursor_goto_first_child_for_point(&tc, clicked);
-    TSNode n = ts_tree_cursor_current_node(&tc);
-    // 482 = create_query, 460 = CTE, 628 = subuquery
-    while(ts_tree_cursor_goto_parent(&tc)) {
-        n = ts_tree_cursor_current_node(&tc);
+    TSNode n = ts_node_descendant_for_point_range(ts_tree_root_node(tree), clicked, clicked);
+    //fprintf(stderr, "parent context starting node %s\n", node_to_string(n));
+    // 482 = create_query, 460 = CTE, 628 = subuquery, 393 = program (root)
+    while(ts_node_symbol(n) != 393) {
+        n = ts_node_parent(n);
         TSSymbol s = ts_node_symbol(n);
-        if(s == 482 || s == 460 || s == 628)
-            printf("row %i, cols %i-%i", ts_node_start_point(n).row, ts_node_start_point(n).column, ts_node_end_point(n).column);
+        if(s == 482 || s == 460 || s == 628) {
             break;
+        }
     }
-    ts_tree_cursor_delete(&tc);
     return n;
 }
 
 // gets the object_reference node for the create table statement for a table
 // returns the root node of the program if the exact table name searched for isn't found
-TSNode create_table_node_for_table_name(const TSTree * tree, std::string code, const char * table){
+//
+// Expanding the usage of this function so it can be called from any of 
+//  1) inside a table def to get a CTE / subquery def 
+//  2) globally as a helper function
+//  3) globally from a text search bar in an editor
+// parent node will be set to tree_root for queries that are obviously going to be 
+// going to have to extend the neovim extension to get the node at the point of the visual cursor,
+// not just the text there. Back to the forums!
+TSNode context_definition(const TSTree * tree, std::string code, TSNode parent, const char * context_name){
     TSQueryCursor * cursor = ts_query_cursor_new();
     uint32_t q_error_offset;
     TSQueryError q_error;
-    TSQueryMatch cur_match;
+    TSQueryMatch table_match;
+    const char * q = "(create_table (object_reference schema: (identifier)? name: (identifier)) @definition)";
     // reusing error offsets and cursors from before
-    TSQuery * create_table_q = ts_query_new(
-        tree_sitter_sql(),
-        "(create_table (keyword_create) (keyword_table) (object_reference schema: (identifier)? name: (identifier)) @definition)",
-        119,
-        &q_error_offset,
-        &q_error
-    );
-    int found = 0;
+    TSQuery * create_table_q = ts_query_new(tree_sitter_sql(), q, strlen(q), &q_error_offset, &q_error);
+    int table_found = 0;
+    // so, awkward, but we're just doing two searches and comparing the results. First search is 
+    // legacy code to get global table definitions, second will be local for "subcontexts"
     ts_query_cursor_exec(cursor, create_table_q, ts_tree_root_node(tree));
-    while(ts_query_cursor_next_match(cursor, &cur_match)) {
-        if(!strncmp(table
-                    ,code.c_str() + ts_node_start_byte(cur_match.captures[0].node)
-                    ,(ts_node_end_byte(cur_match.captures[0].node) - ts_node_start_byte(cur_match.captures[0].node)))) {
-                        found = 1;
+    while(ts_query_cursor_next_match(cursor, &table_match)) {
+        if(!strncmp(context_name
+                    ,code.c_str() + ts_node_start_byte(table_match.captures[0].node)
+                    ,(ts_node_end_byte(table_match.captures[0].node) - ts_node_start_byte(table_match.captures[0].node)))) {
+                        table_found = 1;
                         break;
                     }
     }
+    fprintf(stderr, "in context_defintion, after vanilla DDL search\n");
+    
+    // TODO: don't let this run if parent == ts_tree_root_node(tree) 
+    int sub_found = 0;
+    TSQueryMatch sub_match;
+    // HACK
+    if(!(ts_node_start_byte(parent) == 0 && ts_node_end_byte(parent) == strlen(code.c_str()))) {
+        // by all known laws of SQL there can't be a subquery and CTE with the same name - CONFIRMED in DuckDB. Binder Error
+        const char * sq = "(cte (identifier) @definition) (subquery (identifier) @definition)";
+        TSQuery * subcontext_q = ts_query_new(tree_sitter_sql(), sq, strlen(sq), &q_error_offset, &q_error);
+        // Turns out we can have freaking "arbitrarily" nested select statements. Might have to get logically gross here
+        ts_query_cursor_set_max_start_depth(cursor, 4);
+        ts_query_cursor_exec(cursor, subcontext_q, parent);
+        fprintf(stderr, "in context_defintion, exec-ed subquery search\n");
+        while(ts_query_cursor_next_match(cursor, &sub_match)) {
+            if(!strncmp(context_name
+                        ,code.c_str() + ts_node_start_byte(sub_match.captures[0].node)
+                        ,(ts_node_end_byte(sub_match.captures[0].node) - ts_node_start_byte(sub_match.captures[0].node)))) {
+                            sub_found = 1;
+                            fprintf(stderr, "in context_defintion, subquery FOUND\n");
+                            break;
+                        }
+        }
+        ts_query_delete(subcontext_q);
+    }
 
-    if (!found)
-        return ts_tree_root_node(tree);
+    TSNode ret = ts_tree_root_node(tree);
+    if (table_found)
+        ret = table_match.captures[0].node;
+    else if (sub_found)
+        ret = sub_match.captures[0].node;
+    // if it doesn't hit either `if` we know there aren't any tables, relevant CTEs or subqueries with that name
+    // ret will stay the default of the whole parse tree's root, which should be handled by caller
+    fprintf(stderr, "returning from context_defintion\n");
+
     //printf("after the earthquake (DDL drizzy found)\n");
-    TSNode ret = cur_match.captures[0].node; 
     ts_query_cursor_delete(cursor);
     ts_query_delete(create_table_q);
     return ret;
@@ -283,7 +317,8 @@ std::list<TSNode> expand_select_star(TSNode star_node, const char * source) {
     std::string ssource = source;
     int i = 0;
     while(ts_query_cursor_next_match(cursor, &cur_match)) {
-        TSNode ddl_node = create_table_node_for_table_name(star_node.tree, ssource, node_to_string(source, cur_match.captures[0].node));
+        // TODO: 1) fix this whole dang function 2) check if the `select` node we're working with is the right thing to use as a parent node
+        TSNode ddl_node = context_definition(star_node.tree, ssource, star_node, node_to_string(source, cur_match.captures[0].node));
         //fprintf(stderr, "match %i: %s , %s\n", i, node_to_string(source, cur_match.captures[0].node), node_to_string(source, cur_match.captures[1].node));
         // first predicate should only happen if all cols from all tables are selected
         if(!strcmp("-1", reference)) {
@@ -301,7 +336,8 @@ std::list<TSNode> expand_select_star(TSNode star_node, const char * source) {
         }
         i++;
     }
-    free(references_q);
+    ts_query_delete(references_q);
+    ts_query_cursor_delete(cursor);
     return field_list;
 }
 
@@ -334,13 +370,15 @@ std::list<TSNode> references_to_table(TSTree * tree, std::string code, const cha
     return reflist;
 }
 
-std::list<TSNode> references_from_table(TSTree * tree, std::string code, const char * table) {
+std::list<TSNode> references_from_context(TSTree * tree, std::string code, TSNode parent, const char * table) {
     TSQueryCursor * cursor = ts_query_cursor_new();
     uint32_t q_error_offset;
     TSQueryError q_error;
     TSQueryMatch cur_match;
 
-    TSNode node = ts_node_parent(create_table_node_for_table_name(tree, code, table));
+    fprintf(stderr, "in refs from, pre anything\n");
+    TSNode node = ts_node_parent(context_definition(tree, code, parent, table));
+    fprintf(stderr, "in refs from, post parent node finding\n");
 
     TSQuery * table_names_q = ts_query_new(
         tree_sitter_sql(),
@@ -352,7 +390,12 @@ std::list<TSNode> references_from_table(TSTree * tree, std::string code, const c
 
     std::list<TSNode> reflist;
 
-    // this limits it to all of the direct from / joined tables (no CTEs / subqueries)
+    // so I *think* depth is relative to the starting node of the query, not the root node.
+    // Tried to read ts_query_cursor__* source code to figure this out but dang that's dense
+    // Short of it is we want just the references from this context, not the subcontexts, BUT
+    // if we're calling this from a subcontext (CTE or subquery, we ofc want to be able to see
+    // references. So if this doesn't work from within subcontexts (depth is relative to root)
+    // then we'll have to get hacky
     ts_query_cursor_set_max_start_depth(cursor, 4);
     ts_query_cursor_exec(cursor, table_names_q, node);
     while(ts_query_cursor_next_match(cursor, &cur_match)) {
@@ -394,15 +437,15 @@ std::list<TSNode> tables_downstream_of_table(TSTree * tree, std::string code, co
     return reflist;
 }
 
-std::list<TSNode> tables_upstream_of_table(TSTree * tree, std::string code, const char * table) {
+std::list<TSNode> contexts_upstream_of_context(TSTree * tree, std::string code, TSNode parent, const char * context_name) {
     std::list<TSNode> reflist;
-    std::list<TSNode> dfs = references_from_table(tree, code, table);
+    std::list<TSNode> dfs = references_from_context(tree, code, parent, context_name);
     while(dfs.size() > 0) {
-        TSNode next_table = dfs.front();
+        TSNode next_context = dfs.front();
         dfs.pop_front();
-        reflist.push_front(next_table);
-        fprintf(stderr, "Everything but merging. Node: %s\n", node_to_string(code.c_str(), next_table));
-        std::list<TSNode> refs = references_from_table(tree, code, node_to_string(code.c_str(), next_table));
+        reflist.push_front(next_context);
+        fprintf(stderr, "Everything but merging. Node: %s\n", node_to_string(code.c_str(), next_context));
+        std::list<TSNode> refs = references_from_context(tree, code, next_context, node_to_string(code.c_str(), next_context));
         if(refs.size())
             dfs.merge(refs, node_compare);
         fprintf(stderr, "Merged\n");
@@ -417,7 +460,7 @@ typedef struct {
 } cd_nodelist;
 
 extern "C" {
-    cd_nodelist references_from_table_c(const char * code, const char * table) {
+    cd_nodelist references_from_context_c(const char * code, const char * context_name, int cursor_row, int cursor_column) {
         cd_nodelist ret;
         std::string _code = code;
         // crazy inefficient to do this again - neovim already maintains a tree,
@@ -432,7 +475,13 @@ extern "C" {
             strlen(code)
         );
 
-        std::list<TSNode> res = references_from_table(tree, _code, table);
+        // TODO: get fancy syntax to work... TSPoint cursor_point = (TSPoint) { .row = cursor_row, .column = cursor_column };
+        TSPoint cursor_point;
+        cursor_point.row = cursor_row;
+        cursor_point.column = cursor_column;
+        TSNode parent = parent_context(tree, cursor_point);
+
+        std::list<TSNode> res = references_from_context(tree, _code, parent, context_name);
         // janky way to do block of int[3]s
         ret.points = (int *)malloc(sizeof(int) * 3 * res.size());
         int i = 0;
@@ -511,7 +560,7 @@ extern "C" {
         return ret;
     }
 
-    cd_nodelist tables_upstream_of_table_c(const char * code, const char * table) {
+    cd_nodelist contexts_upstream_of_context_c(const char * code, const char * context_name, int cursor_row, int cursor_column) {
         cd_nodelist ret;
         std::string _code = code;
         TSParser * parser = ts_parser_new();
@@ -523,7 +572,12 @@ extern "C" {
             strlen(code)
         );
 
-        std::list<TSNode> res = tables_upstream_of_table(tree, _code, table);
+        TSPoint cursor_point;
+        cursor_point.row = cursor_row;
+        cursor_point.column = cursor_column;
+        TSNode parent = parent_context(tree, cursor_point);
+
+        std::list<TSNode> res = contexts_upstream_of_context(tree, _code, parent, context_name);
         ret.points = (int *)malloc(sizeof(int) * 3 * res.size());
         int i = 0;
         for(TSNode n: res) {
@@ -558,7 +612,8 @@ extern "C" {
             strlen(code)
         );
 
-        TSNode ddl = create_table_node_for_table_name(tree, _code, table);
+        // TODO: this will only find create table statements. Pass node from neovim so we can do CTEs too
+        TSNode ddl = context_definition(tree, _code, ts_tree_root_node(tree), table);
 
         std::list<TSNode> res = result_columns_for_ddl(ddl, code);
         // janky way to do block of int[3]s
