@@ -1,5 +1,23 @@
 #include "card.cpp"
 
+int test_context_defintion() {
+    const char * q = "\
+        with row_number as (\
+            select flight_id\
+                  ,row_number() over (partition by airport, date order by depart_time) as rn\
+            from flights\
+        )\
+        select f.*\
+        from flights f\
+        left join row_number rn on (f.flight_id = rn.flight_id)\
+        where rn = 1"
+    std::string code = q;
+    TSNode def = get_context_def(tree, code, ts_tree_root_node(tree), "row_number");
+    assert(ts_node_start_point(def).row == 0);
+    assert(ts_node_start_point(def).column == 5);
+    assert(ts_node_start_point(def).column == 14);
+}
+
 int test_references_from(TSParser * parser) {
     std::ifstream fd;
     fd.open("dag.sql");

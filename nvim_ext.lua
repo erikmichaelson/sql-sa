@@ -1,4 +1,29 @@
+------- GLOBALS ------
+local api = vim.api
+
 ------- HELPER -------
+function multiline_highlight(start_row, start_col, end_row, end_col)
+    --print("in ml_hl: ["..start_row..","..start_col.."],["..end_row..":"..end_col.."]")
+    if (end_row - start_row) > 0 then
+        api.nvim_buf_add_highlight(0, cns, 'WildMenu'
+            ,start_row
+            ,start_col
+            ,-1)
+        for r = start_row+1, end_row-1 do
+            api.nvim_buf_add_highlight(0, cns, 'WildMenu' ,r ,0 ,-1)
+        end
+        api.nvim_buf_add_highlight(0, cns, 'WildMenu'
+            ,end_row
+            ,0
+            ,end_col)
+    else
+        api.nvim_buf_add_highlight(0, cns, 'WildMenu'
+            ,start_row
+            ,start_col
+            ,end_col)
+    end
+end
+
 function get_visual_selection()
   local s_start = vim.fn.getpos("'<")
   local s_end = vim.fn.getpos("'>")
@@ -14,7 +39,6 @@ function get_visual_selection()
 end
 
 -------  CARD  -------
-local api = vim.api
 local ffi = require('ffi')
 
 --print "Hello from nvim_card"
@@ -39,6 +63,7 @@ ffi.cdef[[
     // this will only ever return one node, but this makes the result easier to use
     // TODO: fix to make less confusing
     cd_nodelist parent_context_c(const char * code, TSPoint clicked);
+    cd_nodelist table_ddl_c(const char * code, TSPoint clicked);
 ]]
 
 -- hopefully it can figure out card = card.so, not cardlib.so
@@ -48,8 +73,34 @@ local card = ffi.load("card")
 
 cns = api.nvim_create_namespace('card')
 
+function card_get_parent_context()
+    api.nvim_buf_clear_namespace(0, cns, 0, -1)
+    local point = ffi.new('TSPoint[1]')
+    point[0].row    = api.nvim_win_get_cursor(0)[1] - 1
+    point[0].column = api.nvim_win_get_cursor(0)[2]
+    local source = api.nvim_buf_get_lines(0, 0, -1, true)
+    source = table.concat(source, '\n')
+    local parent_context_name = card.parent_context_c(source, point[0])
+end
+
+function highlight_card_context_ddl()
+    api.nvim_buf_clear_namespace(0, cns, 0, -1)
+    local point = ffi.new('TSPoint[1]')
+    point[0].row    = api.nvim_win_get_cursor(0)[1] - 1
+    point[0].column = api.nvim_win_get_cursor(0)[2]
+    local source = api.nvim_buf_get_lines(0, 0, -1, true)
+    source = table.concat(source, '\n')
+    local res = card.table_ddl_c(source, point[0])
+
+    --print('['..tonumber(res.points[0])..':'..tonumber(res.points[1])..'],['
+    --                    ..tonumber(res.points[2])..':'..tonumber(res.points[3])..']')
+    multiline_highlight(tonumber(res.points[0]), tonumber(res.points[1])
+                        ,tonumber(res.points[2]), tonumber(res.points[3]))
+end
+
 -- must be called from Neovim obv so there's a point to be found
 function highlight_card_parent_context()
+    api.nvim_buf_clear_namespace(0, cns, 0, -1)
     local point = ffi.new('TSPoint[1]')
     point[0].row    = api.nvim_win_get_cursor(0)[1] - 1
     point[0].column = api.nvim_win_get_cursor(0)[2]
@@ -57,11 +108,13 @@ function highlight_card_parent_context()
     local source = api.nvim_buf_get_lines(0, 0, -1, true)
     source = table.concat(source, '\n')
     local res = card.parent_context_c(source, point[0]);
-    --print (tonumber(res.points[0])..','..tonumber(res.points[1])..','..tonumber(res.points[2]))
+    print ('['..tonumber(res.points[0])..':'..tonumber(res.points[1])
+            ..'],['..tonumber(res.points[2])..':'..tonumber(res.points[3])..']')
+
     api.nvim_buf_add_highlight(0, cns, 'WildMenu'
-        ,tonumber(res.points[0])
-        ,tonumber(res.points[1])
-        ,tonumber(res.points[2]))
+        ,res.points[0]
+        ,res.points[1]
+        ,res.points[3])
 end
 
 function highlight_card_references_from_table(table_name)
@@ -76,9 +129,9 @@ function highlight_card_references_from_table(table_name)
     points = card.references_from_table_c(source, table_name)
     for p = 0, (points.size - 1) do
         api.nvim_buf_add_highlight(0, cns, 'WildMenu'
-            ,tonumber(points.points[(p * 3) + 0])
-            ,tonumber(points.points[(p * 3) + 1])
-            ,tonumber(points.points[(p * 3) + 2]))
+            ,tonumber(points.points[(p * 4) + 0])
+            ,tonumber(points.points[(p * 4) + 1])
+            ,tonumber(points.points[(p * 4) + 3]))
     end
     print "mission accomplished"
 end
@@ -92,9 +145,9 @@ function highlight_card_references_to_table(table_name)
     points = card.references_to_table_c(source, table_name)
     for p = 0, (points.size - 1) do
         api.nvim_buf_add_highlight(0, cns, 'WildMenu'
-            ,tonumber(points.points[(p * 3) + 0])
-            ,tonumber(points.points[(p * 3) + 1])
-            ,tonumber(points.points[(p * 3) + 2]))
+            ,tonumber(points.points[(p * 4) + 0])
+            ,tonumber(points.points[(p * 4) + 1])
+            ,tonumber(points.points[(p * 4) + 3]))
     end
 end
 
@@ -107,9 +160,9 @@ function highlight_card_downstream_of_table(table_name)
     points = card.tables_downstream_of_table_c(source, table_name)
     for p = 0, (points.size - 1) do
         api.nvim_buf_add_highlight(0, cns, 'WildMenu'
-            ,tonumber(points.points[(p * 3) + 0])
-            ,tonumber(points.points[(p * 3) + 1])
-            ,tonumber(points.points[(p * 3) + 2]))
+            ,tonumber(points.points[(p * 4) + 0])
+            ,tonumber(points.points[(p * 4) + 1])
+            ,tonumber(points.points[(p * 4) + 3]))
     end
 end
 
@@ -122,9 +175,9 @@ function highlight_card_upstream_of_context(context_name, row, col)
     points = card.contexts_upstream_of_context_c(source, table_name, row, col)
     for p = 0, (points.size - 1) do
         api.nvim_buf_add_highlight(0, cns, 'WildMenu'
-            ,tonumber(points.points[(p * 3) + 0])
-            ,tonumber(points.points[(p * 3) + 1])
-            ,tonumber(points.points[(p * 3) + 2]))
+            ,tonumber(points.points[(p * 4) + 0])
+            ,tonumber(points.points[(p * 4) + 1])
+            ,tonumber(points.points[(p * 4) + 3]))
     end
 end
 
@@ -146,6 +199,7 @@ function card_reset()
 end
 
 vim.cmd("let mapleader=',' ")
+-- visual mode shortcuts
 vim.keymap.set('v', '<Leader>t'
     ,':lua highlight_card_references_to_table(get_visual_selection())<CR>')
 vim.keymap.set('v', '<Leader>f'
@@ -154,7 +208,12 @@ vim.keymap.set('v', '<Leader>j'
     ,':lua highlight_card_downstream_of_table(get_visual_selection())<CR>')
 vim.keymap.set('v', '<Leader>k'
     ,':lua highlight_card_upstream_of_context(get_visual_selection(), vim.fn.getpos("\'<")[2], vim.fn.getpos("\'<")[1])<CR>')
+
+-- normal mode shortcust
+vim.keymap.set('n', '<Leader>h'
+    ,':lua highlight_card_references_from_table(card_get_parent_context())<CR>')
 vim.keymap.set('n', '<Leader>p',':lua highlight_card_parent_context()<CR>')
+vim.keymap.set('n', '<Leader>d',':lua highlight_card_context_ddl()<CR>')
 vim.keymap.set('n', '<Leader>r', ':lua card_reset()<CR>')
 
 print "try 'highlight_card_references_from_table(table_name)' "

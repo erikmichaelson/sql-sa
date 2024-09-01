@@ -1,5 +1,48 @@
 #include "card.cpp"
 
+// precondition: highlight_token_starts is sorted
+std::string format_term_highlights(std::string source, const node_color_map_list highlight_tokens) {
+    int adj = 0;
+    for(int i = 0; i < highlight_tokens.length; i++) {
+        //fprintf(stderr, "%i ", i);
+        if(highlight_tokens.ncms[i].color == RED) {
+            source.insert(ts_node_start_byte(highlight_tokens.ncms[i].node) + adj, "\e[31m", 5);
+            adj += 5;
+         } else if(highlight_tokens.ncms[i].color == PURPLE) {
+            source.insert(ts_node_start_byte(highlight_tokens.ncms[i].node) + adj, "\e[35m", 5);
+            adj += 5;
+        }
+        source.insert(ts_node_end_byte(highlight_tokens.ncms[i].node) + adj, "\e[0m", 4);
+        adj += 4;
+    }
+    return source;
+}
+
+node_color_map_list reflist_to_highlights(std::list<TSNode> reflist) {
+    node_color_map_list ret;
+    // again, alloc double since we don't know how many of these have an alias too
+    ret.ncms = (node_color_map *) malloc(2 * reflist.size() * sizeof(node_color_map));
+    int i = 0;
+    for(TSNode ref : reflist) {
+        node_color_map hl;
+        hl.node = ref;
+        hl.color = PURPLE;
+        ret.ncms[i] = hl;
+        i++;
+        if(ts_node_child_count(ts_node_parent(ref)) == 2) {
+            node_color_map hl2;
+            hl2.node = ts_node_next_sibling(ref);
+            hl2.color = RED;
+            ret.ncms[i] = hl2;
+            i++;
+        }
+    }
+    ret.length = i;
+    //printf("conversion to highlight list successful\n");
+    return ret;
+}
+
+
 int main(int argc, char ** argv) {
     std::string files = "ALL";
 
@@ -111,8 +154,8 @@ int main(int argc, char ** argv) {
             if (!strcmp(argv[4], "--at")) {
                 TSPoint p;
                 char * str = argv[5];
-                p.row = 59;//std::stoi(strtok(str, ","));
-                p.column = 4;//std::stoi(strtok(str, ","));
+                p.row = std::stoi(strtok(str, ","));
+                p.column = std::stoi(strtok(NULL, ","));
                 fprintf(stderr, "point: %i:%i\n", p.row, p.column);
                 TSNode ret = parent_context(tree, p);
                 //fprintf(stderr, "PARENT CONTEXT:\n%s", node_to_string(all_sqls.c_str(), ret));

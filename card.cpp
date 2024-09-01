@@ -8,7 +8,7 @@
 #include <sql.h>
 #include <list>
 
-void debug_rint_node_capture_info(uint32_t id, TSNode node, std::string all_sqls) {
+void debug_print_node_capture_info(uint32_t id, TSNode node, std::string all_sqls) {
     printf("id: %i, references: %.*s, capture: %s\n", id,
                     ts_node_end_byte(node) - ts_node_start_byte(node),
                     all_sqls.c_str() + ts_node_start_byte(node),
@@ -64,47 +64,10 @@ typedef struct {
     uint32_t length;
 } node_color_map_list;
 
-// precondition: highlight_token_starts is sorted
-std::string format_term_highlights(std::string source, const node_color_map_list highlight_tokens) {
-    int adj = 0;
-    for(int i = 0; i < highlight_tokens.length; i++) {
-        //fprintf(stderr, "%i ", i);
-        if(highlight_tokens.ncms[i].color == RED) {
-            source.insert(ts_node_start_byte(highlight_tokens.ncms[i].node) + adj, "\e[31m", 5);
-            adj += 5;
-         } else if(highlight_tokens.ncms[i].color == PURPLE) {
-            source.insert(ts_node_start_byte(highlight_tokens.ncms[i].node) + adj, "\e[35m", 5);
-            adj += 5;
-        }
-        source.insert(ts_node_end_byte(highlight_tokens.ncms[i].node) + adj, "\e[0m", 4);
-        adj += 4;
-    }
-    return source;
-}
-
-node_color_map_list reflist_to_highlights(std::list<TSNode> reflist) {
-    node_color_map_list ret;
-    // again, alloc double since we don't know how many of these have an alias too
-    ret.ncms = (node_color_map *) malloc(2 * reflist.size() * sizeof(node_color_map));
-    int i = 0;
-    for(TSNode ref : reflist) {
-        node_color_map hl;
-        hl.node = ref;
-        hl.color = PURPLE;
-        ret.ncms[i] = hl;
-        i++;
-        if(ts_node_child_count(ts_node_parent(ref)) == 2) {
-            node_color_map hl2;
-            hl2.node = ts_node_next_sibling(ref);
-            hl2.color = RED;
-            ret.ncms[i] = hl2;
-            i++;
-        }
-    }
-    ret.length = i;
-    //printf("conversion to highlight list successful\n");
-    return ret;
-}
+typedef struct {
+    const char * source;
+    TSTree * tree;
+} card_runtime;
 
 std::string open_sqls(std::string files) {
     std::string ret;
@@ -156,17 +119,50 @@ char * get_source_for_field(TSNode term_stmt) {
 }
 */
 
+std::list<std::string> get_table_names(TSTree * tree, const char * source) {
+    TSQueryCursor * cursor = ts_query_cursor_new();
+    uint32_t q_error_offset;
+    TSQueryError q_error;
+    TSQueryMatch table_match;
+    const char * query = "(create_table (object_reference schema: (identifier)? name: (identifier)) @definition)";
+    TSQuery * create_table_q = ts_query_new(
+        tree_sitter_sql(),
+        query,
+        strlen(query),
+        &q_error_offset,
+        &q_error
+    );
+
+    std::list<std::string> ret;
+    while(ts_query_cursor_next_match(cursor, &table_match)) {
+        std::string s = node_to_string(source, table_match.captures[0].node);
+        ret.push_back(s);
+    }
+    return ret;
+}
+
 TSNode parent_context(TSTree * tree, TSPoint clicked) {
     TSNode n = ts_node_descendant_for_point_range(ts_tree_root_node(tree), clicked, clicked);
     //fprintf(stderr, "parent context starting node %s\n", node_to_string(n));
-    // 482 = create_query, 460 = CTE, 628 = subuquery, 393 = program (root)
+    // 478 = create_table object_reference, 482 = create_query, 460 = CTE, 628 = subuquery, 393 = program (root)
+    TSSymbol s;
     while(ts_node_symbol(n) != 393) {
         n = ts_node_parent(n);
-        TSSymbol s = ts_node_symbol(n);
-        if(s == 482 || s == 460 || s == 628) {
+        s = ts_node_symbol(n);
+        //printf("node symbol: %s - %i\n", ts_language_symbol_name(ts_tree_language(tree), ts_node_symbol(n)), s);
+        if(s == 393 || s == 478 || s == 460 || s == 628) {
             break;
         }
     }
+    if(s == 478)
+        n = ts_node_child(n, 2);
+    if(s == 460)
+        n = ts_node_child(n, 0);
+    if(s == 628) {
+        while(ts_node_symbol(n) != 637)
+            n = ts_node_next_sibling(n);
+    }
+
     return n;
 }
 
@@ -239,6 +235,15 @@ TSNode context_definition(const TSTree * tree, std::string code, TSNode parent, 
     ts_query_cursor_delete(cursor);
     ts_query_delete(create_table_q);
     return ret;
+}
+
+// TODO: update to context logic somehow
+const char * get_ddl_for_table_name(const TSTree * tree, const char * source, const char * table_name) {
+    std::string cast = source;
+    TSNode create_table_node = context_definition(tree, cast, ts_tree_root_node(tree), table_name);
+    if(ts_node_symbol(create_table_node) != 478)
+        return "ERROR: table by name %s not found in the source code\n";
+    return node_to_string(source, ts_node_next_sibling(ts_node_next_sibling(create_table_node)));
 }
 
 
@@ -482,13 +487,13 @@ extern "C" {
         TSNode parent = parent_context(tree, cursor_point);
 
         std::list<TSNode> res = references_from_context(tree, _code, parent, context_name);
-        // janky way to do block of int[3]s
-        ret.points = (int *)malloc(sizeof(int) * 3 * res.size());
+        ret.points = (int *)malloc(sizeof(int) * 4 * res.size());
         int i = 0;
         for(TSNode n: res) {
             ret.points[(i * 3) + 0] = ts_node_start_point(n).row;
             ret.points[(i * 3) + 1] = ts_node_start_point(n).column;
-            ret.points[(i * 3) + 2] =   ts_node_end_point(n).column;
+            ret.points[(i * 3) + 2] =   ts_node_end_point(n).row;
+            ret.points[(i * 3) + 3] =   ts_node_end_point(n).column;
             i++;
         }
         ret.size = i;
@@ -514,13 +519,13 @@ extern "C" {
         );
 
         std::list<TSNode> res = references_to_table(tree, _code, table);
-        // janky way to do block of int[3]s
-        ret.points = (int *)malloc(sizeof(int) * 3 * res.size());
+        ret.points = (int *)malloc(sizeof(int) * 4 * res.size());
         int i = 0;
         for(TSNode n: res) {
             ret.points[(i * 3) + 0] = ts_node_start_point(n).row;
             ret.points[(i * 3) + 1] = ts_node_start_point(n).column;
-            ret.points[(i * 3) + 2] =   ts_node_end_point(n).column;
+            ret.points[(i * 3) + 2] =   ts_node_end_point(n).row;
+            ret.points[(i * 3) + 3] =   ts_node_end_point(n).column;
             i++;
         }
         ret.size = i;
@@ -544,13 +549,13 @@ extern "C" {
         );
 
         std::list<TSNode> res = tables_downstream_of_table(tree, _code, table);
-        // janky way to do block of int[3]s
-        ret.points = (int *)malloc(sizeof(int) * 3 * res.size());
+        ret.points = (int *)malloc(sizeof(int) * 4 * res.size());
         int i = 0;
         for(TSNode n: res) {
             ret.points[(i * 3) + 0] = ts_node_start_point(n).row;
             ret.points[(i * 3) + 1] = ts_node_start_point(n).column;
-            ret.points[(i * 3) + 2] =   ts_node_end_point(n).column;
+            ret.points[(i * 3) + 2] =   ts_node_end_point(n).row;
+            ret.points[(i * 3) + 3] =   ts_node_end_point(n).column;
             i++;
         }
         ret.size = i;
@@ -578,12 +583,13 @@ extern "C" {
         TSNode parent = parent_context(tree, cursor_point);
 
         std::list<TSNode> res = contexts_upstream_of_context(tree, _code, parent, context_name);
-        ret.points = (int *)malloc(sizeof(int) * 3 * res.size());
+        ret.points = (int *)malloc(sizeof(int) * 4 * res.size());
         int i = 0;
         for(TSNode n: res) {
             ret.points[(i * 3) + 0] = ts_node_start_point(n).row;
             ret.points[(i * 3) + 1] = ts_node_start_point(n).column;
-            ret.points[(i * 3) + 2] =   ts_node_end_point(n).column;
+            ret.points[(i * 3) + 2] =   ts_node_end_point(n).row;
+            ret.points[(i * 3) + 3] =   ts_node_end_point(n).column;
             i++;
         }
         ret.size = i;
@@ -616,7 +622,6 @@ extern "C" {
         TSNode ddl = context_definition(tree, _code, ts_tree_root_node(tree), table);
 
         std::list<TSNode> res = result_columns_for_ddl(ddl, code);
-        // janky way to do block of int[3]s
         ret.fields = (char **)malloc(sizeof(char *) * res.size());
         int i = 0;
         for(TSNode n: res) {
@@ -643,10 +648,35 @@ extern "C" {
             strlen(code)
         );
         TSNode n = parent_context(tree, clicked);
-        ret.points = (int *)malloc(sizeof(int) * 3);
+        ret.points = (int *)malloc(sizeof(int) * 4);
         ret.points[0] = ts_node_start_point(n).row;
         ret.points[1] = ts_node_start_point(n).column;
-        ret.points[2] =   ts_node_end_point(n).column;
+        ret.points[2] =   ts_node_end_point(n).row;
+        ret.points[3] =   ts_node_end_point(n).column;
+        ret.size = 1;
+
+        ts_tree_delete(tree);
+        ts_parser_delete(parser);
+        return ret;
+    }
+
+    cd_nodelist table_ddl_c(const char * code, TSPoint clicked) {
+        cd_nodelist ret;
+        TSParser * parser = ts_parser_new();
+        ts_parser_set_language(parser, tree_sitter_sql());
+        TSTree * tree = ts_parser_parse_string(
+            parser,
+            NULL,
+            code,
+            strlen(code)
+        );
+        TSNode n = parent_context(tree, clicked);
+        n = ts_node_next_sibling(ts_node_next_sibling(n));
+        ret.points = (int *) malloc(sizeof(int) * 4);
+        ret.points[0] = ts_node_start_point(n).row;
+        ret.points[1] = ts_node_start_point(n).column;
+        ret.points[2] =   ts_node_end_point(n).row;
+        ret.points[3] =   ts_node_end_point(n).column;
         ret.size = 1;
 
         ts_tree_delete(tree);
