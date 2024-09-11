@@ -60,7 +60,6 @@ int main(int argc, char ** argv) {
         all_sqls.c_str(),
         strlen(all_sqls.c_str())
     );
-    printf("root symbol: %i", ts_node_symbol(ts_tree_root_node(tree)));
     //FILE * dg = fopen("dotgraph.dot", "w");
     //ts_tree_print_dot_graph(tree, fileno(dg));
     //printf("parsed root: %s\n", ts_node_string(ts_tree_root_node(tree)));
@@ -169,10 +168,27 @@ int main(int argc, char ** argv) {
                 ncm.ncms[0] = n;
                 printf("\n%s\n", format_term_highlights(all_sqls, ncm).c_str());
             }
+        } else if (!strcmp(argv[3], "contextddl")) {
+            if (argc != 6) { printf("used wrong"); exit(1); }
+            if (!strcmp(argv[4], "--at")) {
+                TSPoint p;
+                char * str = argv[5];
+                p.row = std::stoi(strtok(str, ","));
+                p.column = std::stoi(strtok(NULL, ","));
+                TSNode pc = parent_context(tree, p);
+                const char * context_name = node_to_string(all_sqls.c_str(), pc);
+                TSNode ret = context_ddl(tree, all_sqls.c_str(), p, context_name);
+                node_color_map n;
+                n.node = ret;
+                n.color = PURPLE;
+                node_color_map_list ncm;
+                ncm.length = 1;
+                ncm.ncms = (node_color_map *)malloc(sizeof(node_color_map));
+                ncm.ncms[0] = n;
+                printf("\n%s\n", format_term_highlights(all_sqls, ncm).c_str());
+            }
         }
-        fprintf(stderr, "still handling args\n");
     }
 
-    fprintf(stderr, "back in body of main\n");
     return 0;
 }

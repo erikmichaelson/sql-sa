@@ -50,7 +50,7 @@ ffi.cdef[[
       const TSTree *tree;
     } TSNode;
     typedef struct { int * points; int size; } cd_nodelist;
-    cd_nodelist references_from_table_c(const char * source, const char * table);
+    cd_nodelist references_from_context_c(const char * source, const char * table);
     cd_nodelist references_to_table_c(const char * source, const char * table);
     cd_nodelist tables_downstream_of_table_c(const char * source, const char * table);
     cd_nodelist contexts_upstream_of_context_c(const char * source, const char * table
@@ -63,7 +63,7 @@ ffi.cdef[[
     // this will only ever return one node, but this makes the result easier to use
     // TODO: fix to make less confusing
     cd_nodelist parent_context_c(const char * code, TSPoint clicked);
-    cd_nodelist table_ddl_c(const char * code, TSPoint clicked);
+    cd_nodelist context_ddl_c(const char * code, TSPoint clicked);
 ]]
 
 -- hopefully it can figure out card = card.so, not cardlib.so
@@ -90,7 +90,7 @@ function highlight_card_context_ddl()
     point[0].column = api.nvim_win_get_cursor(0)[2]
     local source = api.nvim_buf_get_lines(0, 0, -1, true)
     source = table.concat(source, '\n')
-    local res = card.table_ddl_c(source, point[0])
+    local res = card.context_ddl_c(source, point[0])
 
     --print('['..tonumber(res.points[0])..':'..tonumber(res.points[1])..'],['
     --                    ..tonumber(res.points[2])..':'..tonumber(res.points[3])..']')
@@ -117,7 +117,7 @@ function highlight_card_parent_context()
         ,res.points[3])
 end
 
-function highlight_card_references_from_table(table_name)
+function highlight_card_references_from_context(table_name)
     api.nvim_buf_clear_namespace(0, cns, 0, -1)
     vim.cmd('syntax off')
     -- TODO: this is probably not the most efficient way. Honestly, C is fun and all
@@ -126,7 +126,7 @@ function highlight_card_references_from_table(table_name)
     local source = api.nvim_buf_get_lines(0, 0, -1, true)
     source = table.concat(source, "\n")
     local points = ffi.new("cd_nodelist[1]")
-    points = card.references_from_table_c(source, table_name)
+    points = card.references_from_context_c(source, table_name)
     for p = 0, (points.size - 1) do
         api.nvim_buf_add_highlight(0, cns, 'WildMenu'
             ,tonumber(points.points[(p * 4) + 0])
@@ -203,7 +203,7 @@ vim.cmd("let mapleader=',' ")
 vim.keymap.set('v', '<Leader>t'
     ,':lua highlight_card_references_to_table(get_visual_selection())<CR>')
 vim.keymap.set('v', '<Leader>f'
-    ,':lua highlight_card_references_from_table(get_visual_selection())<CR>')
+    ,':lua highlight_card_references_from_context(get_visual_selection())<CR>')
 vim.keymap.set('v', '<Leader>j'
     ,':lua highlight_card_downstream_of_table(get_visual_selection())<CR>')
 vim.keymap.set('v', '<Leader>k'
@@ -211,9 +211,9 @@ vim.keymap.set('v', '<Leader>k'
 
 -- normal mode shortcust
 vim.keymap.set('n', '<Leader>h'
-    ,':lua highlight_card_references_from_table(card_get_parent_context())<CR>')
+    ,':lua highlight_card_references_from_context(card_get_parent_context())<CR>')
 vim.keymap.set('n', '<Leader>p',':lua highlight_card_parent_context()<CR>')
 vim.keymap.set('n', '<Leader>d',':lua highlight_card_context_ddl()<CR>')
 vim.keymap.set('n', '<Leader>r', ':lua card_reset()<CR>')
 
-print "try 'highlight_card_references_from_table(table_name)' "
+print "try 'highlight_card_references_from_context(table_name)' "

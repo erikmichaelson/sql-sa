@@ -32,10 +32,11 @@ create table dag.new_table as (
         from elt.leads
         group by cust_ssn
     )
-    select * 
+    select *
     from etl.leads l
     left join cust_level c on l.cust_ssn = c.cust_ssn
-    left join (select s.start_dt, s.end_dt from etl.salesmen s where l.owner_id = s.id) as tnaa
+    left join (select s.start_dt, s.end_dt from etl.salesmen s where l.owner_id = s.id)
+        as tnaa on tnaa.start_dt = l.create_dt
 );
 
 create table dag.another as (
