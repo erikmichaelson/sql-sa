@@ -53,7 +53,7 @@ ffi.cdef[[
     cd_nodelist references_from_context_c(const char * source, const char * table);
     cd_nodelist references_to_table_c(const char * source, const char * table);
     cd_nodelist tables_downstream_of_table_c(const char * source, const char * table);
-    cd_nodelist contexts_upstream_of_context_c(const char * source, const char * table
+    cd_nodelist contexts_upstream_of_context_c(const char * source, const char * context_name
                                                 ,int row, int col);
 
     typedef struct { char ** fields; int size; } cd_stringlist;
@@ -133,7 +133,7 @@ function highlight_card_references_from_context(table_name)
             ,tonumber(points.points[(p * 4) + 1])
             ,tonumber(points.points[(p * 4) + 3]))
     end
-    print "mission accomplished"
+    print (points.size.." references from "..table_name)
 end
 
 function highlight_card_references_to_table(table_name)
@@ -149,6 +149,7 @@ function highlight_card_references_to_table(table_name)
             ,tonumber(points.points[(p * 4) + 1])
             ,tonumber(points.points[(p * 4) + 3]))
     end
+    print(points.size.." references to "..table_name)
 end
 
 function highlight_card_downstream_of_table(table_name)
@@ -164,6 +165,7 @@ function highlight_card_downstream_of_table(table_name)
             ,tonumber(points.points[(p * 4) + 1])
             ,tonumber(points.points[(p * 4) + 3]))
     end
+    print(points.size.." tables downstream of "..table_name)
 end
 
 function highlight_card_upstream_of_context(context_name, row, col)
@@ -172,13 +174,14 @@ function highlight_card_upstream_of_context(context_name, row, col)
     local source = api.nvim_buf_get_lines(0, 0, -1, true)
     source = table.concat(source, "\n")
     local points = ffi.new("cd_nodelist[1]")
-    points = card.contexts_upstream_of_context_c(source, table_name, row, col)
+    points = card.contexts_upstream_of_context_c(source, context_name, row, col)
     for p = 0, (points.size - 1) do
         api.nvim_buf_add_highlight(0, cns, 'WildMenu'
             ,tonumber(points.points[(p * 4) + 0])
             ,tonumber(points.points[(p * 4) + 1])
             ,tonumber(points.points[(p * 4) + 3]))
     end
+    print(points.size.." contexts upstream of "..context_name)
 end
 
 function print_card_columns_in_table(table_name)

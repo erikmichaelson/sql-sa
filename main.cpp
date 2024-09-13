@@ -95,15 +95,17 @@ int main(int argc, char ** argv) {
             } else if (!strcmp(argv[4], "--from")) {
                 printf("in FROM references\n");
                 // all tables this table references 
-                printf("the following tables are referenced from %s\n", argv[5]);
                 std::list<TSNode> from_reflist = references_from_context(tree, all_sqls, ts_tree_root_node(tree), argv[5]);
+                if(!from_reflist.size()) {
+                    printf("Zero tables are referenced from %s\n", argv[5]);
+                    exit(1);
+                }
+                printf("the following %i tables are referenced from %s\n", from_reflist.size(), argv[5]);
                 from_reflist.sort(node_compare);
                 node_color_map_list from_highlights = reflist_to_highlights(from_reflist);
                 std::string ret = format_term_highlights(all_sqls, from_highlights);
-                printf("highlights formatted\n");
                 printf("%s\n", ret.c_str());
                 free(from_highlights.ncms);
-                fprintf(stderr, "after printing full code\n");
             }
         } else if (!strcmp(argv[3], "downstream")) {
             if (argc != 6) { printf("used wrong"); exit(1); }
