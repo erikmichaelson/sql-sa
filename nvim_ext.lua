@@ -50,7 +50,9 @@ ffi.cdef[[
       const TSTree *tree;
     } TSNode;
     typedef struct { int * points; int size; } cd_nodelist;
-    cd_nodelist references_from_context_c(const char * source, const char * table);
+    // interesting... this API is _WRONG_, but I can still call it. Missing the row and col
+    // to make the point, but that must just be using uninitialized memory. Shocked it doesn't crash
+    cd_nodelist references_from_context_c(const char * source, const char * table, int row, int col);
     cd_nodelist references_to_table_c(const char * source, const char * table);
     cd_nodelist tables_downstream_of_table_c(const char * source, const char * table);
     cd_nodelist contexts_upstream_of_context_c(const char * source, const char * context_name
@@ -64,6 +66,7 @@ ffi.cdef[[
     // TODO: fix to make less confusing
     cd_nodelist parent_context_c(const char * code, TSPoint clicked);
     cd_nodelist context_ddl_c(const char * code, TSPoint clicked);
+    cd_nodelist context_definition_c(const char * code, TSPoint clicked, const char * context_name);
 ]]
 
 -- hopefully it can figure out card = card.so, not cardlib.so
@@ -80,7 +83,28 @@ function card_get_parent_context()
     point[0].column = api.nvim_win_get_cursor(0)[2]
     local source = api.nvim_buf_get_lines(0, 0, -1, true)
     source = table.concat(source, '\n')
-    local parent_context_name = card.parent_context_c(source, point[0])
+    local res = card.parent_context_c(source, point[0])
+    local lines = vim.api.nvim_buf_get_text(0
+                            ,res.points[0]
+                            ,res.points[1]
+                            ,res.points[2]
+                            ,res.points[3]
+                            ,{})
+    return lines[1]
+end
+
+function highlight_card_context_definition(context_name)
+    api.nvim_buf_clear_namespace(0, cns, 0, -1)
+    local point = ffi.new('TSPoint[1]')
+    point[0].row    = api.nvim_win_get_cursor(0)[1] - 1
+    point[0].column = api.nvim_win_get_cursor(0)[2]
+    local source = api.nvim_buf_get_lines(0, 0, -1, true)
+    source = table.concat(source, '\n')
+    local res = card.context_definition_c(source, point[0], context_name)
+    api.nvim_buf_add_highlight(0, cns, 'WildMenu'
+        ,res.points[0]
+        ,res.points[1]
+        ,res.points[3])
 end
 
 function highlight_card_context_ddl()
@@ -117,7 +141,7 @@ function highlight_card_parent_context()
         ,res.points[3])
 end
 
-function highlight_card_references_from_context(table_name)
+function highlight_card_references_from_context(table_name, row, col)
     api.nvim_buf_clear_namespace(0, cns, 0, -1)
     vim.cmd('syntax off')
     -- TODO: this is probably not the most efficient way. Honestly, C is fun and all
@@ -126,7 +150,7 @@ function highlight_card_references_from_context(table_name)
     local source = api.nvim_buf_get_lines(0, 0, -1, true)
     source = table.concat(source, "\n")
     local points = ffi.new("cd_nodelist[1]")
-    points = card.references_from_context_c(source, table_name)
+    points = card.references_from_context_c(source, table_name, row, col)
     for p = 0, (points.size - 1) do
         api.nvim_buf_add_highlight(0, cns, 'WildMenu'
             ,tonumber(points.points[(p * 4) + 0])
@@ -206,7 +230,7 @@ vim.cmd("let mapleader=',' ")
 vim.keymap.set('v', '<Leader>t'
     ,':lua highlight_card_references_to_table(get_visual_selection())<CR>')
 vim.keymap.set('v', '<Leader>f'
-    ,':lua highlight_card_references_from_context(get_visual_selection())<CR>')
+    ,':lua highlight_card_references_from_context(get_visual_selection(), vim.fn.getpos("\'<")[2], vim.fn.getpos("\'<")[1])<CR>')
 vim.keymap.set('v', '<Leader>j'
     ,':lua highlight_card_downstream_of_table(get_visual_selection())<CR>')
 vim.keymap.set('v', '<Leader>k'
@@ -214,7 +238,7 @@ vim.keymap.set('v', '<Leader>k'
 
 -- normal mode shortcust
 vim.keymap.set('n', '<Leader>h'
-    ,':lua highlight_card_references_from_context(card_get_parent_context())<CR>')
+    ,':lua highlight_card_references_from_context(card_get_parent_context(), vim.fn.getpos("\'<")[2], vim.fn.getpos("\'<")[1])<CR>')
 vim.keymap.set('n', '<Leader>p',':lua highlight_card_parent_context()<CR>')
 vim.keymap.set('n', '<Leader>d',':lua highlight_card_context_ddl()<CR>')
 vim.keymap.set('n', '<Leader>r', ':lua card_reset()<CR>')

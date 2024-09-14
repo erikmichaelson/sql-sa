@@ -29,7 +29,7 @@ create table dag.new_table as (
     with cust_level as (
         select cust_ssn, count(*) as num_leads
               ,sum(case when booked then 1 else 0 end) as num_booked
-        from elt.leads
+        from etl.leads
         group by cust_ssn
     )
     select *
@@ -58,7 +58,7 @@ create table dag.two_deep as (
 );
 
 create table dag.completely_unrelated as (
-    select lead_id, min(updated), max(updated) from elt.snapshot group by lead_id 
+    select lead_id, min(updated), max(updated) from etl.snapshot group by lead_id 
 );
 
 create table dag.three_deep as (
