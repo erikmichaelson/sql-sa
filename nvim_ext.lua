@@ -208,6 +208,19 @@ function highlight_card_upstream_of_context(context_name, row, col)
     print(points.size.." contexts upstream of "..context_name)
 end
 
+function card_columns_in_table(table_name)
+    ret = card_sa_columns_in_table(table_name)
+    if sa_cit = 'CATALOG' then
+        local usr_res = vim.fn.input("This requires a catalog query. Enter Y to use to allow this")
+        if usr_res == 'Y' then
+            ret = card_cat_columns_in_table(table_name)
+        else
+            return "GRANT PERMISSION TO SEE ALL COLUMNS"
+        end
+    end
+    return ret
+end
+
 function print_card_columns_in_table(table_name)
     -- api.nvim_buf_clear_namespace(0, cns, 0, -1)
     -- vim.cmd('syntax off')

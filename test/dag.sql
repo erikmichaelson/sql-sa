@@ -40,7 +40,7 @@ create table dag.new_table as (
 );
 
 create table dag.another as (
-    select e.*, count(l.id)
+    select e.*, count(l.id) as num_leads
     from etl.employee e
     left join etl.leads l on (l.owner_id = e.id)
     group by e.*
