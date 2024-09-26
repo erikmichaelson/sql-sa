@@ -12,6 +12,96 @@ typedef struct {
     uint32_t length;
 } node_color_map_list;
 
+void serialize_queries() {
+    size_t len;
+    char buf[500];
+    FILE* fd = fopen("card_queries.tsq", "w+");
+    TSQueryError q_error;
+    uint32_t q_error_offset;
+
+    const char * q = "[ (relation (object_reference schema: (identifier)? name: (identifier)) @reference)\
+                        ((subquery) (keyword_as)? (identifier) @reference) ]";
+    TSQuery * REFERENCES_FROM_Q = ts_query_new(
+        tree_sitter_sql(),
+        q,
+        strlen(q),
+        &q_error_offset,
+        &q_error
+    );
+    strcpy(buf, ts_query_serialize(REFERENCES_FROM_Q, &len));
+    printf("references from query serialized, %lu bytes\n", len);
+    fwrite(buf, 1, len, fd);
+    fflush(fd);
+
+    const char * toq = "(relation (object_reference schema: (identifier)? name: (identifier))@reference alias: (identifier)? @alias)";
+    TSQuery * REFERENCES_TO_Q = ts_query_new(
+        tree_sitter_sql(),
+        toq,
+        strlen(toq),
+        &q_error_offset,
+        &q_error
+    );
+    strcpy(buf, ts_query_serialize(REFERENCES_TO_Q, &len));
+    printf("references to query serialized, %lu bytes\n", len);
+    fwrite(buf, 1, len, fd);
+    fflush(fd);
+
+    const char * cdtq = "(create_table (object_reference schema: (identifier)? name: (identifier)) @definition)";
+    TSQuery * CONTEXT_DEF_TABLE_Q = ts_query_new(
+        tree_sitter_sql(),
+        cdtq,
+        strlen(cdtq),
+        &q_error_offset,
+        &q_error
+    );
+    strcpy(buf, ts_query_serialize(CONTEXT_DEF_TABLE_Q, &len));
+    printf("context def table query serialized, %lu bytes\n", len);
+    fwrite(buf, 1, len, fd);
+    fflush(fd);
+
+    const char * cdsq = "[(cte (identifier) @definition) ((subquery) (keyword_as)? (identifier) @definition)]";
+    TSQuery * CONTEXT_DEF_SUB_Q = ts_query_new(
+        tree_sitter_sql(),
+        cdsq,
+        strlen(cdsq),
+        &q_error_offset,
+        &q_error
+    );
+    strcpy(buf, ts_query_serialize(CONTEXT_DEF_SUB_Q, &len));
+    printf("context def sub query serialized, %lu bytes\n", len);
+    fwrite(buf, 1, len, fd);
+    fflush(fd);
+
+    const char * fldq = "(select (select_expression (term [value: (field . name: (identifier) . ) alias: (identifier) (all_fields)] @fieldname)))";
+    TSQuery * FIELD_DEF_Q = ts_query_new(
+        tree_sitter_sql(),
+        fldq,
+        strlen(fldq),
+        &q_error_offset,
+        &q_error
+    );
+    strcpy(buf, ts_query_serialize(FIELD_DEF_Q, &len));
+    printf("field def query serialized, %lu bytes\n", len);
+    fwrite(buf, 1, len, fd);
+    fflush(fd);
+
+    const char * colq = "(column_definitions (column_definition name: (identifier) @col_def))";
+    TSQuery * COLUMN_DEF_Q = ts_query_new(
+        tree_sitter_sql(),
+        colq,
+        strlen(colq),
+        &q_error_offset,
+        &q_error
+    );
+    strcpy(buf, ts_query_serialize(COLUMN_DEF_Q, &len));
+    printf("column def query serialized, %lu bytes\n", len);
+    fwrite(buf, 1, len, fd);
+    fflush(fd);
+
+    fclose(fd);
+    return;
+}
+
 std::string open_sqls(std::string files) {
     std::string ret;
     // open all SQL files into a buffer. Hideously inefficient, but we're small atm
@@ -92,26 +182,22 @@ node_color_map_list reflist_to_highlights(std::list<TSNode> reflist) {
 
 
 int main(int argc, char ** argv) {
+    if(!strcmp(argv[1], "serialize")) {
+        printf("serializing all queries\n");
+        serialize_queries();
+        exit(0);
+    }
+
     std::string files = "ALL";
 
     if(argc > 1)
         files = std::string(argv[1]);
 
-    TSParser *parser = ts_parser_new();
-    ts_parser_set_language(parser, tree_sitter_sql());
-
     std::string all_sqls = open_sqls(files);
     //printf("files opened\n");
-    card_runtime r = card_runtime_init(all_sqls.c_str());
+    card_runtime * r = card_runtime_init(all_sqls.c_str());
     //FILE * dg = fopen("dotgraph.dot", "w");
     //ts_tree_print_dot_graph(tree, fileno(dg));
-    //printf("parsed root: %s\n", ts_node_string(ts_tree_root_node(tree)));
-    //printf("trees built\n");
-    // reused for all queries in `main`
-    TSQueryCursor * cursor = ts_query_cursor_new();
-    uint32_t q_error_offset;
-    TSQueryError q_error;
-    TSQueryMatch cur_match;
 
     if(argc > 2) {
         // show either DDL or references for a table
@@ -138,12 +224,12 @@ int main(int argc, char ** argv) {
             } else if (!strcmp(argv[4], "--from")) {
                 printf("in FROM references\n");
                 // all tables this table references 
-                std::list<TSNode> from_reflist = references_from_context(r, ts_tree_root_node(r.tree), argv[5]);
+                std::list<TSNode> from_reflist = references_from_context(r, ts_tree_root_node(r->tree), argv[5]);
                 if(!from_reflist.size()) {
                     printf("Zero tables are referenced from %s\n", argv[5]);
                     exit(1);
                 }
-                printf("the following %i tables are referenced from %s\n", from_reflist.size(), argv[5]);
+                printf("the following %lu tables are referenced from %s\n", from_reflist.size(), argv[5]);
                 from_reflist.sort(node_compare);
                 node_color_map_list from_highlights = reflist_to_highlights(from_reflist);
                 std::string ret = format_term_highlights(all_sqls, from_highlights);
@@ -166,7 +252,7 @@ int main(int argc, char ** argv) {
             if (argc != 6) { printf("used wrong"); exit(1); }
             if (!strcmp(argv[4], "--of")) {
                 printf("in upstream of\n");
-                std::list<TSNode> upstream_reflist = contexts_upstream_of_context(r, ts_tree_root_node(r.tree), argv[5]);
+                std::list<TSNode> upstream_reflist = contexts_upstream_of_context(r, ts_tree_root_node(r->tree), argv[5]);
                 upstream_reflist.sort(node_compare);
                 node_color_map_list upstream_highlights = reflist_to_highlights(upstream_reflist);
                 printf("%s\n", format_term_highlights(all_sqls, upstream_highlights).c_str());
@@ -178,7 +264,7 @@ int main(int argc, char ** argv) {
             if (argc != 6) { printf("used wrong"); exit(1); }
             if (!strcmp(argv[4], "--in")) {
                 // this is completely copied... code to get DDL node for a table give table name string. Should be a function
-                TSNode ddl_node = context_definition(r, ts_tree_root_node(r.tree), argv[5]);
+                TSNode ddl_node = context_definition(r, ts_tree_root_node(r->tree), argv[5]);
                 if(ts_node_start_byte(ddl_node) == 0) {
                     printf("ERROR: no table with the name '%s' exists\n", argv[5]);
                     exit(1);
@@ -201,7 +287,7 @@ int main(int argc, char ** argv) {
                 p.row = std::stoi(strtok(str, ","));
                 p.column = std::stoi(strtok(NULL, ","));
                 fprintf(stderr, "point: %i:%i\n", p.row, p.column);
-                TSNode ret = parent_context(r.tree, p);
+                TSNode ret = parent_context(r->tree, p);
                 //fprintf(stderr, "PARENT CONTEXT:\n%s", node_to_string(all_sqls.c_str(), ret));
                 node_color_map n;
                 n.node = ret;
@@ -220,7 +306,7 @@ int main(int argc, char ** argv) {
                 char * str = argv[5];
                 p.row = std::stoi(strtok(str, ","));
                 p.column = std::stoi(strtok(NULL, ","));
-                TSNode pc = parent_context(r.tree, p);
+                TSNode pc = parent_context(r->tree, p);
                 const char * context_name = node_to_string(all_sqls.c_str(), pc);
                 TSNode ret = context_ddl(r, p, context_name);
                 node_color_map n;
