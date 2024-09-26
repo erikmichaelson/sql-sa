@@ -1,5 +1,53 @@
 #include "card.cpp"
 
+typedef enum { PURPLE, RED } HIGHLIGHT_COLOR;
+
+typedef struct {
+    TSNode node;
+    HIGHLIGHT_COLOR color;
+} node_color_map;
+
+typedef struct {
+    node_color_map * ncms;
+    uint32_t length;
+} node_color_map_list;
+
+std::string open_sqls(std::string files) {
+    std::string ret;
+    // open all SQL files into a buffer. Hideously inefficient, but we're small atm
+    if(files == "ALL") {
+        DIR* cwd = opendir("./test/");
+        while(struct dirent* e = readdir(cwd)) {
+            std::string a = std::string(e->d_name);
+            std::cout << a;
+            if(a.find(".sql") != std::string::npos) {
+                //printf("Looking in 'sql' file %s\n", e->d_name);
+                std::ifstream fd;
+                fd.open(e->d_name);
+                std::string new_ret( (std::istreambuf_iterator<char>(fd) ),
+                                     (std::istreambuf_iterator<char>()    ) );
+                std::cout << new_ret;
+                ret.append(new_ret);
+                fd.close();
+            }
+        }
+    } else {
+        //printf("Looking in 'sql' file %s\n", files.c_str());
+        std::ifstream fd;
+        fd.open(files);
+        std::string new_ret( (std::istreambuf_iterator<char>(fd) ),
+                             (std::istreambuf_iterator<char>()    ) );
+        ret.append(new_ret);
+        if(ret.length() == 0) {
+            //printf("ERROR: nothing read from file\n;(fixit)");
+            exit(1);
+        }
+        fd.close();
+    }
+    return ret;
+}
+
+
 // precondition: highlight_token_starts is sorted
 std::string format_term_highlights(std::string source, const node_color_map_list highlight_tokens) {
     int adj = 0;

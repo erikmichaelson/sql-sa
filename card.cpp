@@ -30,29 +30,6 @@ const char * node_to_string(const char * source, const TSNode n) {
     return ret;
 }
 
-std::string * get_file_order() {
-    std::string *ret = (std::string *)malloc(sizeof(std::string));
-    // find FROM tables, JOINed tables
-
-    const char * q = "(relation @type ( (object_reference schema: (identifier)? table: (identifier) ) @reference))";
-    //TSQuery(source, strlen(source)
-    // build adjacency matrix
-    /*     Pulls from
-          A B C D E F G
-        ------------------
-       A|   - -   -      |
-       B|-    -          |
-       C|         - -    |
-       D|-    -          |
-       E|     - - -      |
-       F|-        -      |
-       G|-          -    |
-        ------------------
-    */
-
-    return ret;
-}
-
 // node symbol number definitions
 #define OBJ_REF_NODE      550
 #define IDENTIFIER_NODE   637
@@ -61,57 +38,10 @@ std::string * get_file_order() {
 #define SUBQUERY_NODE     628
 #define PROGRAM_NODE      393
 
-typedef enum { PURPLE, RED } HIGHLIGHT_COLOR;
-
-typedef struct {
-    TSNode node;
-    HIGHLIGHT_COLOR color;
-} node_color_map;
-
-typedef struct {
-    node_color_map * ncms;
-    uint32_t length;
-} node_color_map_list;
-
 typedef struct {
     const char * source;
     TSTree * tree;
 } card_runtime;
-
-std::string open_sqls(std::string files) {
-    std::string ret;
-    // open all SQL files into a buffer. Hideously inefficient, but we're small atm
-    if(files == "ALL") {
-        DIR* cwd = opendir("./test/");
-        while(struct dirent* e = readdir(cwd)) {
-            std::string a = std::string(e->d_name);
-            std::cout << a;
-            if(a.find(".sql") != std::string::npos) {
-                //printf("Looking in 'sql' file %s\n", e->d_name);
-                std::ifstream fd;
-                fd.open(e->d_name);
-                std::string new_ret( (std::istreambuf_iterator<char>(fd) ),
-                                     (std::istreambuf_iterator<char>()    ) );
-                std::cout << new_ret;
-                ret.append(new_ret);
-                fd.close();
-            }
-        }
-    } else {
-        //printf("Looking in 'sql' file %s\n", files.c_str());
-        std::ifstream fd;
-        fd.open(files);
-        std::string new_ret( (std::istreambuf_iterator<char>(fd) ),
-                             (std::istreambuf_iterator<char>()    ) );
-        ret.append(new_ret);
-        if(ret.length() == 0) {
-            //printf("ERROR: nothing read from file\n;(fixit)");
-            exit(1);
-        }
-        fd.close();
-    }
-    return ret;
-}
 
 /*
 char * get_source_for_field(TSNode term_stmt) {
@@ -455,14 +385,8 @@ std::list<TSNode> references_from_context(TSTree * tree, std::string code, TSNod
             ,ts_language_symbol_name(tree_sitter_sql(), ts_node_symbol(node)));
     */
 
-    const char * q = \
-            "[\
-             (relation (object_reference\
-                         schema: (identifier)?\
-                         name:   (identifier)) @reference)\
-            \
-             ((subquery) (keyword_as)? (identifier) @reference)\
-            ]";
+    const char * q = "[ (relation (object_reference schema: (identifier)? name: (identifier)) @reference)\
+                        ((subquery) (keyword_as)? (identifier) @reference) ]";
 
     TSQuery * table_names_q = ts_query_new(
         tree_sitter_sql(),
@@ -587,12 +511,17 @@ std::list<TSNode> contexts_upstream_of_context(TSTree * tree, std::string code, 
     return reflist;
 }
 
-typedef struct {
-    int * points;
-    int   size;
-} cd_nodelist;
-
 extern "C" {
+    typedef struct {
+        int * points;
+        int   size;
+    } cd_nodelist;
+
+    typedef struct {
+        char ** fields;
+        int     size;
+    } cd_stringlist;
+
     cd_nodelist references_from_context_c(const char * code, const char * context_name, int cursor_row, int cursor_column) {
         cd_nodelist ret;
         std::string _code = code;
@@ -737,11 +666,6 @@ extern "C" {
         ts_parser_delete(parser);
         return ret;
     }
-
-    typedef struct {
-        char ** fields;
-        int     size;
-    } cd_stringlist;
 
     cd_stringlist result_columns_for_table_c(const char * code, const char * table) {
         cd_stringlist ret;

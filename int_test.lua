@@ -185,7 +185,7 @@ function test_card_columns_in_table()
     vim.api.nvim_buf_call(1, 
             function()
                 card_columns_in_table('dag.annotated_snapshot')
-            end
+            end)
     vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
     exp = { 'current_owner','first_owner','last_change','first_change_dt'
            ,'first_change','num_changes','lead_id' }
@@ -199,7 +199,7 @@ function test_card_columns_in_table()
     vim.api.nvim_buf_call(1, 
             function()
                 card_columns_in_table('etl.snapshot')
-            end
+            end)
     vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
     exp = { 'change_by','new_value','old_value','field'
            ,'updated','lead_id','id' }
@@ -213,7 +213,7 @@ function test_card_columns_in_table()
     vim.api.nvim_buf_call(1, 
             function()
                 card_columns_in_table('dag.two_deep')
-            end
+            end)
     vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
     exp = { 'num_leads','cust_nm' }
     if(not tbl_equals(res, exp, false)) then
@@ -226,7 +226,7 @@ function test_card_columns_in_table()
     vim.api.nvim_buf_call(1, 
             function()
                 card_columns_in_table('dag.another')
-            end
+            end)
     vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
     exp = { '','num_leads' }
     if(not tbl_equals(res, exp, false)) then
