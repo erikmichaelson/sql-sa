@@ -210,7 +210,7 @@ end
 
 function card_columns_in_table(table_name)
     ret = card_sa_columns_in_table(table_name)
-    if sa_cit = 'CATALOG' then
+    if sa_cit == 'CATALOG' then
         local usr_res = vim.fn.input("This requires a catalog query. Enter Y to use to allow this")
         if usr_res == 'Y' then
             ret = card_cat_columns_in_table(table_name)
@@ -231,6 +231,22 @@ function print_card_columns_in_table(table_name)
     for i = 0, (fields.size - 1) do
         print ("\t"..ffi.string(fields.fields[i]))
     end
+end
+
+function card_jump_to_definition()
+    local context_name = vim.fn.input('')
+    local source = api.nvim_buf_get_lines(0, 0, -1, true)
+    local point = ffi.new('TSPoint[1]')
+    point[0].row    = api.nvim_win_get_cursor(0)[1] - 1
+    point[0].column = api.nvim_win_get_cursor(0)[2]
+    source = table.concat(source, "\n")
+    local def = ffi.new("cd_nodelist[1]")
+    print()
+    def = card.context_definition_c(source, point[0], context_name)
+    if def.points[0] == 0 then
+        print('No context named '..context_name..' found')
+    end
+    vim.cmd('call cursor('..(def.points[0] + 1)..','..(def.points[1] + 1)..')')
 end
 
 function card_reset()
@@ -254,6 +270,8 @@ vim.keymap.set('n', '<Leader>h'
     ,':lua highlight_card_references_from_context(card_get_parent_context(), vim.fn.getpos("\'<")[2], vim.fn.getpos("\'<")[1])<CR>')
 vim.keymap.set('n', '<Leader>p',':lua highlight_card_parent_context()<CR>')
 vim.keymap.set('n', '<Leader>d',':lua highlight_card_context_ddl()<CR>')
+vim.keymap.set('n', '<Leader>/'
+        ,':lua card_jump_to_definition();<CR>')
 vim.keymap.set('n', '<Leader>r', ':lua card_reset()<CR>')
 
 print "try 'highlight_card_references_from_context(table_name)' "
