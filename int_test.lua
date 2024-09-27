@@ -245,4 +245,4 @@ card_reset()
 print(fails.." test failures")
 
 require "os"
---os.exit()
+os.exit()

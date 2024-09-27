@@ -132,8 +132,8 @@ function highlight_card_parent_context()
     local source = api.nvim_buf_get_lines(0, 0, -1, true)
     source = table.concat(source, '\n')
     local res = card.parent_context_c(source, point[0]);
-    print ('['..tonumber(res.points[0])..':'..tonumber(res.points[1])
-            ..'],['..tonumber(res.points[2])..':'..tonumber(res.points[3])..']')
+    --print ('['..tonumber(res.points[0])..':'..tonumber(res.points[1])
+    --        ..'],['..tonumber(res.points[2])..':'..tonumber(res.points[3])..']')
 
     api.nvim_buf_add_highlight(0, cns, 'WildMenu'
         ,res.points[0]

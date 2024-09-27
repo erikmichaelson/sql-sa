@@ -66,44 +66,37 @@ card_runtime * card_runtime_init(const char * source) {
     );
     // TODO: deserialize this instead of alloc
     ret->cursor = ts_query_cursor_new();
-    char buf[500];
-    FILE* QUERY_FILE = fopen("card_queries.tsq", "r");
-    fread(buf, 1, 355, QUERY_FILE);
-    ret->REFERENCES_FROM_Q = ts_query_deserialize(buf, ret->language);
-    /*
-    const char * cdtq = "(create_table (object_reference schema: (identifier)? name: (identifier)) @definition)";
-    ret->CONTEXT_DEF_TABLE_Q = ts_query_new(
-        ret->language,
-        cdtq,
-        strlen(cdtq),
-        &q_error_offset,
-        &q_error
-    );
-    const char * cdsq = "[(cte (identifier) @definition) ((subquery) (keyword_as)? (identifier) @definition)]";
-    ret->CONTEXT_DEF_SUB_Q = ts_query_new(
-        ret->language,
-        cdsq,
-        strlen(cdsq),
-        &q_error_offset,
-        &q_error
-    );
-    const char * fldq = "(select (select_expression (term [value: (field . name: (identifier) . ) alias: (identifier) (all_fields)] @fieldname)))";
-    ret->FIELD_DEF_Q = ts_query_new(
-        ret->language,
-        fldq,
-        strlen(fldq),
-        &q_error_offset,
-        &q_error
-    );
-    const char * colq = "(column_definitions (column_definition name: (identifier) @col_def))";
-    ret->COLUMN_DEF_Q = ts_query_new(
-        ret->language,
-        colq,
-        strlen(colq),
-        &q_error_offset,
-        &q_error
-    );
-    */
+    char * buf = (char *)malloc(500);
+    // TODO: make this not a security bloodbath by doing a checksum on the query binaries
+    FILE * fd = fopen("queries/all_queries.tsq","r");
+    size_t check = fread(buf, 1, 355, fd);
+    buf[355] = EOF;
+    ret->REFERENCES_FROM_Q      = ts_query_deserialize(buf, tree_sitter_sql());
+    fprintf(stderr, "desered the first query!\n");
+
+    fread(buf, 1, 284, fd);
+    buf[284] = EOF;
+    ret->REFERENCES_TO_Q        = ts_query_deserialize(buf, ret->language);
+
+    fread(buf, 1, 242, fd);
+    buf[242] = EOF;
+    ret->CONTEXT_DEF_TABLE_Q    = ts_query_deserialize(buf, ret->language);
+
+    fread(buf, 1, 300, fd);
+    buf[300] = EOF;
+    ret->CONTEXT_DEF_SUB_Q      = ts_query_deserialize(buf, ret->language);
+
+    fread(buf, 1, 365, fd);
+    buf[365] = EOF;
+    ret->FIELD_DEF_Q            = ts_query_deserialize(buf, ret->language);
+
+    fread(buf, 1, 211, fd);
+    buf[211] = EOF;
+    ret->COLUMN_DEF_Q           = ts_query_deserialize(buf, ret->language);
+    fclose(fd);
+
+    printf("Deserialization done!\n");
+    free(buf);
     return ret;
 }
 
@@ -223,12 +216,15 @@ TSNode context_definition(card_runtime * r, TSNode parent, const char * context_
                         }
         }
     }
+    ts_query_cursor_set_max_start_depth(r->cursor, UINT32_MAX);
 
     TSNode ret = ts_tree_root_node(r->tree);
     if (table_found)
         ret = table_match.captures[0].node;
     else if (sub_found)
         ret = sub_match.captures[0].node;
+    else
+        fprintf(stderr, "NOTICE: context definition for %s not found!\n", context_name);
     // if it doesn't hit either `if` we know there aren't any tables, relevant CTEs or subqueries with that name
     // ret will stay the default of the whole parse tree's root, which should be handled by caller
     //fprintf(stderr, "returning from context_defintion\n");
@@ -383,7 +379,6 @@ std::list<TSNode> references_to_table(card_runtime * r, const char * table) {
 
 std::list<TSNode> references_from_context(card_runtime * r, TSNode parent, const char * context_name) {
     std::list<TSNode> reflist;
-    std::string code = r->source;
 
     //fprintf(stderr, "in refs from, pre anything\n");
     TSNode node = context_definition(r, parent, context_name);
@@ -413,6 +408,8 @@ std::list<TSNode> references_from_context(card_runtime * r, TSNode parent, const
     while(ts_query_cursor_next_match(r->cursor, &cur_match)) {
         reflist.push_front(cur_match.captures[0].node);
     }
+    // reset shared cursor
+    ts_query_cursor_set_max_start_depth(r->cursor, UINT32_MAX);
     //fprintf(stderr, "in refs from, %i captures captured\n", reflist.size());
 
     return reflist;

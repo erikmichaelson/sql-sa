@@ -14,8 +14,7 @@ typedef struct {
 
 void serialize_queries() {
     size_t len;
-    char buf[500];
-    FILE* fd = fopen("card_queries.tsq", "w+");
+    FILE* fd = fopen("queries/all_queries.tsq", "w+");
     TSQueryError q_error;
     uint32_t q_error_offset;
 
@@ -28,9 +27,9 @@ void serialize_queries() {
         &q_error_offset,
         &q_error
     );
-    strcpy(buf, ts_query_serialize(REFERENCES_FROM_Q, &len));
+    const char * buf1 = ts_query_serialize(REFERENCES_FROM_Q, &len);
     printf("references from query serialized, %lu bytes\n", len);
-    fwrite(buf, 1, len, fd);
+    fwrite(buf1, 1, len, fd);
     fflush(fd);
 
     const char * toq = "(relation (object_reference schema: (identifier)? name: (identifier))@reference alias: (identifier)? @alias)";
@@ -41,9 +40,9 @@ void serialize_queries() {
         &q_error_offset,
         &q_error
     );
-    strcpy(buf, ts_query_serialize(REFERENCES_TO_Q, &len));
+    const char * buf2 = ts_query_serialize(REFERENCES_TO_Q, &len);
     printf("references to query serialized, %lu bytes\n", len);
-    fwrite(buf, 1, len, fd);
+    fwrite(buf2, 1, len, fd);
     fflush(fd);
 
     const char * cdtq = "(create_table (object_reference schema: (identifier)? name: (identifier)) @definition)";
@@ -54,9 +53,9 @@ void serialize_queries() {
         &q_error_offset,
         &q_error
     );
-    strcpy(buf, ts_query_serialize(CONTEXT_DEF_TABLE_Q, &len));
+    const char * buf3 = ts_query_serialize(CONTEXT_DEF_TABLE_Q, &len);
     printf("context def table query serialized, %lu bytes\n", len);
-    fwrite(buf, 1, len, fd);
+    fwrite(buf3, 1, len, fd);
     fflush(fd);
 
     const char * cdsq = "[(cte (identifier) @definition) ((subquery) (keyword_as)? (identifier) @definition)]";
@@ -67,9 +66,9 @@ void serialize_queries() {
         &q_error_offset,
         &q_error
     );
-    strcpy(buf, ts_query_serialize(CONTEXT_DEF_SUB_Q, &len));
+    const char * buf4 = ts_query_serialize(CONTEXT_DEF_SUB_Q, &len);
     printf("context def sub query serialized, %lu bytes\n", len);
-    fwrite(buf, 1, len, fd);
+    fwrite(buf4, 1, len, fd);
     fflush(fd);
 
     const char * fldq = "(select (select_expression (term [value: (field . name: (identifier) . ) alias: (identifier) (all_fields)] @fieldname)))";
@@ -80,9 +79,9 @@ void serialize_queries() {
         &q_error_offset,
         &q_error
     );
-    strcpy(buf, ts_query_serialize(FIELD_DEF_Q, &len));
+    const char * buf5 = ts_query_serialize(FIELD_DEF_Q, &len);
     printf("field def query serialized, %lu bytes\n", len);
-    fwrite(buf, 1, len, fd);
+    fwrite(buf5, 1, len, fd);
     fflush(fd);
 
     const char * colq = "(column_definitions (column_definition name: (identifier) @col_def))";
@@ -93,9 +92,9 @@ void serialize_queries() {
         &q_error_offset,
         &q_error
     );
-    strcpy(buf, ts_query_serialize(COLUMN_DEF_Q, &len));
+    const char * buf6 = ts_query_serialize(COLUMN_DEF_Q, &len);
     printf("column def query serialized, %lu bytes\n", len);
-    fwrite(buf, 1, len, fd);
+    fwrite(buf6, 1, len, fd);
     fflush(fd);
 
     fclose(fd);
