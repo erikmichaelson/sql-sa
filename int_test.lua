@@ -186,7 +186,7 @@ function test_card_columns_in_table()
             function()
                 card_columns_in_table('dag.annotated_snapshot')
             end)
-    vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
+    res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
     exp = { 'current_owner','first_owner','last_change','first_change_dt'
            ,'first_change','num_changes','lead_id' }
     if(not tbl_equals(res, exp, false)) then
@@ -200,7 +200,7 @@ function test_card_columns_in_table()
             function()
                 card_columns_in_table('etl.snapshot')
             end)
-    vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
+    res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
     exp = { 'change_by','new_value','old_value','field'
            ,'updated','lead_id','id' }
     if(not tbl_equals(res, exp, false)) then
@@ -214,7 +214,7 @@ function test_card_columns_in_table()
             function()
                 card_columns_in_table('dag.two_deep')
             end)
-    vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
+    res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
     exp = { 'num_leads','cust_nm' }
     if(not tbl_equals(res, exp, false)) then
         print("FAIL: columns in table [dag.two_deep]. Expected"
@@ -223,11 +223,11 @@ function test_card_columns_in_table()
     end
 
     -- test aliased select star
-    vim.api.nvim_buf_call(1, 
+    vim.api.nvim_buf_call(1,
             function()
                 card_columns_in_table('dag.another')
             end)
-    vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
+    res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
     exp = { '','num_leads' }
     if(not tbl_equals(res, exp, false)) then
         print("FAIL: columns in table [dag.another]. Expected"
@@ -238,9 +238,26 @@ function test_card_columns_in_table()
     return fails
 end
 
+function test_card_contexts_upstream_of()
+    vim.api.nvim_buf_call(1,
+            function()
+                card_highlight_contexts_upstream_of_context('dag.three_deep')
+            end)
+    res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
+    exp = { { , }, { , 28, 13 }, { , 29, 13 }, {, 39, 11},
+            { , 49, 13 }, { , 54, 13 } }
+    if(not tbl_equals(res, exp, false)) then
+        print("FAILS: contexts upstream of [dag.three_deep]. Expected"
+                ..vim.inspect(exp)..", got "..vim.inspect(res))
+        fails = fails + 1
+    end
+    return fails
+end
+
 fails =         test_card_references_from_context()
 fails = fails + test_card_parent_context()
 fails = fails + test_card_references_to_table()
+--fails = fails + test_card_columns_in_table()
 card_reset()
 print(fails.." test failures")
 

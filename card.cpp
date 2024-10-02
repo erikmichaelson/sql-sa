@@ -95,7 +95,6 @@ card_runtime * card_runtime_init(const char * source) {
     ret->COLUMN_DEF_Q           = ts_query_deserialize(buf, ret->language);
     fclose(fd);
 
-    printf("Deserialization done!\n");
     free(buf);
     return ret;
 }
@@ -450,6 +449,8 @@ std::list<TSNode> contexts_upstream_of_context(card_runtime * r, TSNode parent, 
     std::set<std::string> visited;
     std::string code = r->source;
     std::list<TSNode> dfs = references_from_context(r, parent, context_name);
+    printf("number of references from %s: %lu \n", context_name, dfs.size());
+    visited.insert(context_name);
     while(dfs.size() > 0) {
         TSNode next_context_ref = dfs.front();
         dfs.pop_front();
@@ -457,7 +458,7 @@ std::list<TSNode> contexts_upstream_of_context(card_runtime * r, TSNode parent, 
         // are multiple subcontexts with the same name in the same DDL document. TODO: fix this
         if(visited.find(node_to_string(r->source, next_context_ref)) != visited.end()) {
             printf("%s already seen, skipping\n", node_to_string(r->source, next_context_ref));
-            break;
+            continue;
         }
 
         TSNode node_parent = parent_context(r->tree, ts_node_start_point(next_context_ref));
@@ -476,8 +477,6 @@ std::list<TSNode> contexts_upstream_of_context(card_runtime * r, TSNode parent, 
             // this should only be reached when looking for references inside a subquery
             // BUT its getting called on cust_level - a CTE reference. That shouldn't happen
             // figured it out
-            // references TO a CTE are object references, the *name* of a CTE where its created is an identifier
-            // as compared to the *name* of create_table table which is itself an object_reference
             //fprintf(stderr, "identifier node: %s\n", node_to_string(r->source, node_parent));
             if(ts_node_symbol(ts_node_parent(node_parent)) == CTE_NODE) {
                 node_parent = ts_node_parent(node_parent);
@@ -486,19 +485,20 @@ std::list<TSNode> contexts_upstream_of_context(card_runtime * r, TSNode parent, 
                 //printf("should be SUBQUERY, is %s (%i)\n", ts_language_symbol_name(tree_sitter_sql(), ts_node_symbol(node_parent)), ts_node_symbol(node_parent));
             }
         }
-        //printf("parent node: %s\n", node_to_string(r->source, node_parent));
+        /*printf("context name: %s, parent node: %s\n",node_to_string(r->source, next_context_ref), node_to_string(r->source, node_parent));*/
         std::list<TSNode> refs = references_from_context(
                                     r,
                                     node_parent,
                                     node_to_string(r->source, next_context_ref));
+        printf("number of references from %s: %lu \n", node_to_string(r->source, next_context_ref), refs.size());
         if(refs.size() > 0)
             dfs.merge(refs, node_compare);
         else {
             TSNode cd = context_definition(r, node_parent, node_to_string(r->source, next_context_ref));
-            /*printf("following context defintion node had %i references! line %i: %s\n"
+            printf("following context defintion node had %i references! line %i: %s\n"
                     ,refs.size()
                     ,ts_node_start_point(next_context_ref).row
-                    ,node_to_string(r->source, next_context_ref));*/
+                    ,node_to_string(r->source, next_context_ref));
             if(ts_node_symbol(cd) == 393) {
                 printf("NOTICE: referenced context %s on line %i wasn't defined in this file!\n"
                         ,node_to_string(r->source, next_context_ref)
