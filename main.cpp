@@ -254,6 +254,7 @@ int main(int argc, char ** argv) {
                 std::list<TSNode> upstream_reflist = contexts_upstream_of_context(r, ts_tree_root_node(r->tree), argv[5]);
                 upstream_reflist.sort(node_compare);
                 node_color_map_list upstream_highlights = reflist_to_highlights(upstream_reflist);
+                printf("%lu contexts upstream of %s\n", upstream_reflist.size(), argv[5]);
                 printf("%s\n", format_term_highlights(all_sqls, upstream_highlights).c_str());
                 free(upstream_highlights.ncms);
             } else {

@@ -72,7 +72,7 @@ card_runtime * card_runtime_init(const char * source) {
     size_t check = fread(buf, 1, 355, fd);
     buf[355] = EOF;
     ret->REFERENCES_FROM_Q      = ts_query_deserialize(buf, tree_sitter_sql());
-    fprintf(stderr, "desered the first query!\n");
+    //fprintf(stderr, "desered the first query!\n");
 
     fread(buf, 1, 284, fd);
     buf[284] = EOF;
@@ -232,6 +232,27 @@ TSNode context_definition(card_runtime * r, TSNode parent, const char * context_
     return ret;
 }
 
+TSNode ddl_node_for_name_node(card_runtime * r, TSNode def_name_node) {
+    TSNode ret;
+    if(ts_node_symbol(def_name_node) == OBJ_REF_NODE)
+        ret = ts_node_parent(def_name_node);
+    else if(ts_node_symbol(def_name_node) == IDENTIFIER_NODE) {
+        // this should only be reached when looking for references inside a subquery
+        // BUT its getting called on cust_level - a CTE reference. That shouldn't happen
+        // figured it out
+        // references TO a CTE are object references, the *name* of a CTE where its created is an identifier
+        // as compared to the *name* of create_table table which is itself an object_reference
+        if(ts_node_symbol(ts_node_parent(def_name_node)) == CTE_NODE) {
+            ret = ts_node_parent(def_name_node);
+        } else {
+            ret = ts_node_prev_sibling(ts_node_prev_sibling(def_name_node));
+        }
+    } else
+        fprintf(stderr, "ERROR: DDL for name node requires an object reference or identifier node!\n");
+
+    return ret;
+}
+
 TSNode context_ddl(card_runtime * r, TSPoint p, const char * context_name) {
     TSNode hl_node;
     if(p.row == 0 && p.column == 0)
@@ -256,21 +277,7 @@ TSNode context_ddl(card_runtime * r, TSPoint p, const char * context_name) {
         fprintf(stderr, "ERROR: context by name %s not found in the source code\n", context_name);
         exit(1);
     }
-    TSNode ret;
-    if(ts_node_symbol(def_name_node) == OBJ_REF_NODE)
-        ret = ts_node_parent(def_name_node);
-    else if(ts_node_symbol(def_name_node) == IDENTIFIER_NODE) {
-        // this should only be reached when looking for references inside a subquery
-        // BUT its getting called on cust_level - a CTE reference. That shouldn't happen
-        // figured it out
-        // references TO a CTE are object references, the *name* of a CTE where its created is an identifier
-        // as compared to the *name* of create_table table which is itself an object_reference
-        if(ts_node_symbol(ts_node_parent(def_name_node)) == CTE_NODE) {
-            ret = ts_node_parent(def_name_node);
-        } else {
-            ret = ts_node_prev_sibling(ts_node_prev_sibling(def_name_node));
-        }
-    }
+    TSNode ret = ddl_node_for_name_node(r, def_name_node);
 
     return ret;
 }
@@ -381,18 +388,9 @@ std::list<TSNode> references_from_context(card_runtime * r, TSNode parent, const
 
     //fprintf(stderr, "in refs from, pre anything\n");
     TSNode node = context_definition(r, parent, context_name);
-    // UGLY. TODO: fix
-    if(ts_node_symbol(node) == OBJ_REF_NODE)
-        node = ts_node_parent(node);
-    else if(ts_node_symbol(node) == IDENTIFIER_NODE) {
-        //fprintf(stderr, "identifier node: %s\n", node_to_string(source, node));
-        if(ts_node_symbol(ts_node_parent(node)) == CTE_NODE) {
-            node = ts_node_parent(node);
-        } else {
-            node = ts_node_prev_sibling(ts_node_prev_sibling(node));
-        }
-    } else if(ts_node_symbol(node) == PROGRAM_NODE)
+    if(ts_node_symbol(node) == PROGRAM_NODE)
         return reflist;
+    node = ddl_node_for_name_node(r, node);
 
     TSQueryMatch cur_match;
 
@@ -462,29 +460,16 @@ std::list<TSNode> contexts_upstream_of_context(card_runtime * r, TSNode parent, 
         }
 
         TSNode node_parent = parent_context(r->tree, ts_node_start_point(next_context_ref));
+        reflist.push_front(node_parent);
 
         fprintf(stderr, "parent context: %s, VISITED: [\n", node_to_string(r->source, node_parent));
         for(std::string v: visited)
             fprintf(stderr, "\t%s\n", v.c_str());
         fprintf(stderr, "]\n");
 
-        reflist.push_front(node_parent);
         visited.insert(node_to_string(r->source, next_context_ref));
 
-        if(ts_node_symbol(node_parent) == OBJ_REF_NODE)
-            node_parent = ts_node_parent(node_parent);
-        else if(ts_node_symbol(node_parent) == IDENTIFIER_NODE) {
-            // this should only be reached when looking for references inside a subquery
-            // BUT its getting called on cust_level - a CTE reference. That shouldn't happen
-            // figured it out
-            //fprintf(stderr, "identifier node: %s\n", node_to_string(r->source, node_parent));
-            if(ts_node_symbol(ts_node_parent(node_parent)) == CTE_NODE) {
-                node_parent = ts_node_parent(node_parent);
-            } else {
-                node_parent = ts_node_prev_sibling(ts_node_prev_sibling(node_parent));
-                //printf("should be SUBQUERY, is %s (%i)\n", ts_language_symbol_name(tree_sitter_sql(), ts_node_symbol(node_parent)), ts_node_symbol(node_parent));
-            }
-        }
+        node_parent = ddl_node_for_name_node(r, node_parent);
         /*printf("context name: %s, parent node: %s\n",node_to_string(r->source, next_context_ref), node_to_string(r->source, node_parent));*/
         std::list<TSNode> refs = references_from_context(
                                     r,
@@ -495,7 +480,7 @@ std::list<TSNode> contexts_upstream_of_context(card_runtime * r, TSNode parent, 
             dfs.merge(refs, node_compare);
         else {
             TSNode cd = context_definition(r, node_parent, node_to_string(r->source, next_context_ref));
-            printf("following context defintion node had %i references! line %i: %s\n"
+            printf("following context defintion node had %lu references! line %i: %s\n"
                     ,refs.size()
                     ,ts_node_start_point(next_context_ref).row
                     ,node_to_string(r->source, next_context_ref));
@@ -536,14 +521,7 @@ extern "C" {
         cursor_point.column = cursor_column;
         TSNode parent = parent_context(r->tree, cursor_point);
         // TODO: turn this into a function. Geez probably the 3rd place I use it in the codebase
-        if(ts_node_symbol(parent) == OBJ_REF_NODE)
-            parent = ts_node_parent(parent);
-        else if(ts_node_symbol(parent) == IDENTIFIER_NODE) {
-            if(ts_node_symbol(ts_node_parent(parent)) == CTE_NODE)
-                parent = ts_node_parent(parent);
-            else
-                parent = ts_node_prev_sibling(ts_node_prev_sibling(parent));
-        }
+        parent = ddl_node_for_name_node(r, parent);
 
         std::list<TSNode> res = references_from_context(r, parent, context_name);
         ret.points = (int *)malloc(sizeof(int) * 4 * res.size());
