@@ -235,22 +235,48 @@ function test_card_columns_in_table()
         fails = fails + 1
     end
 
+    -- test subcontexts
+    vim.api.nvim_buf_call(1,
+            function()
+                card_columns_in_table('dag.new_table')
+            end)
+    res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
+    exp = { 'start_dt','end_dt','cust_ssn','num_booked','num_leads' }
+    if(not tbl_equals(res, exp, false)) then
+        print("FAIL: columns in table [dag.new_table]. Expected"
+                ..vim.inspect(exp)..", got "..vim.inspect(res))
+        fails = fails + 1
+    end
+
     return fails
 end
 
 function test_card_contexts_upstream_of()
     vim.api.nvim_buf_call(1,
             function()
-                card_highlight_contexts_upstream_of_context('dag.three_deep')
+                highlight_card_upstream_of_context('dag.three_deep',1,1)
             end)
     res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
-    exp = { { , }, { , 28, 13 }, { , 29, 13 }, {, 39, 11},
-            { , 49, 13 }, { , 54, 13 } }
+    exp = { { 3, 0, 13 }, { 2, 1, 13 }, { 6, 27, 13 }, { 4, 28, 9 }
+           ,{ 5, 38, 11 }, { 7, 48, 13 }, { 1, 53, 13 }, { 8, 63, 13 } }
     if(not tbl_equals(res, exp, false)) then
         print("FAILS: contexts upstream of [dag.three_deep]. Expected"
                 ..vim.inspect(exp)..", got "..vim.inspect(res))
         fails = fails + 1
     end
+
+    vim.api.nvim_buf_call(1,
+            function()
+                highlight_card_upstream_of_context('tnaa',38,11)
+            end)
+    res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
+    exp = { { 1, 1, 13 }, { 2, 38, 11 } }
+    if(not tbl_equals(res, exp, false)) then
+        print("FAILS: contexts upstream of [dag.new_table > tnaa]. Expected"
+                ..vim.inspect(exp)..", got "..vim.inspect(res))
+        fails = fails + 1
+    end
+
     return fails
 end
 
@@ -258,8 +284,9 @@ fails =         test_card_references_from_context()
 fails = fails + test_card_parent_context()
 fails = fails + test_card_references_to_table()
 --fails = fails + test_card_columns_in_table()
+fails = fails + test_card_contexts_upstream_of()
 card_reset()
 print(fails.." test failures")
 
 require "os"
-os.exit()
+--os.exit()

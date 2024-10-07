@@ -101,6 +101,16 @@ void serialize_queries() {
     return;
 }
 
+void usage() {
+    printf("\
+card  [serialize]\
+      [usage]\
+                  [$SQL_FILE_PATH] [--show] [references] [--to|--from] [$CONTEXT_NAME]\
+                                            [upstream]   [--of]        [$CONTEXT_NAME]\
+                                            [fields]     [--in]        [$CONTEXT_NAME]");
+    return;
+}
+
 std::string open_sqls(std::string files) {
     std::string ret;
     // open all SQL files into a buffer. Hideously inefficient, but we're small atm
@@ -184,6 +194,9 @@ int main(int argc, char ** argv) {
     if(!strcmp(argv[1], "serialize")) {
         printf("serializing all queries\n");
         serialize_queries();
+        exit(0);
+    } else if(!strcmp(argv[1], "serialize")) {
+        usage();
         exit(0);
     }
 
@@ -317,6 +330,21 @@ int main(int argc, char ** argv) {
                 ncm.ncms = (node_color_map *)malloc(sizeof(node_color_map));
                 ncm.ncms[0] = n;
                 printf("\n%s\n", format_term_highlights(all_sqls, ncm).c_str());
+            }
+        } else if (!strcmp(argv[3], "oneup")) {
+            if (argc != 7) { printf("used wrong"); exit(1); }
+            if (!strcmp(argv[4], "--of")) {
+                TSPoint p;
+                char * str = argv[6];
+                p.row = std::stoi(strtok(str, ","));
+                p.column = std::stoi(strtok(NULL, ","));
+                TSNode pc = parent_context(r->tree, p);
+                std::list<TSNode> reflist = columns_one_up_of_column(r, pc, argv[5]);
+                reflist.sort(node_compare);
+                node_color_map_list oneup_highlights = reflist_to_highlights(reflist);
+                printf("%lu contexts upstream of %s\n", reflist.size(), argv[5]);
+                printf("\n%s\n", format_term_highlights(all_sqls, oneup_highlights).c_str());
+                free(oneup_highlights.ncms);
             }
         }
     }

@@ -57,6 +57,8 @@ ffi.cdef[[
     cd_nodelist tables_downstream_of_table_c(const char * source, const char * table);
     cd_nodelist contexts_upstream_of_context_c(const char * source, const char * context_name
                                                 ,int row, int col);
+    cd_nodelist columns_one_up_of_column_c(const char * source, const char * column_name
+                                                ,int row, int col);
 
     typedef struct { char ** fields; int size; } cd_stringlist;
     cd_stringlist result_columns_for_table_c(const char * source, const char * table);
@@ -208,6 +210,23 @@ function highlight_card_upstream_of_context(context_name, row, col)
     print(points.size.." contexts upstream of "..context_name)
 end
 
+function highlight_card_one_up_of_column(column_name, row, col)
+    api.nvim_buf_clear_namespace(0, cns, 0, -1)
+    vim.cmd('syntax off')
+    local source = api.nvim_buf_get_lines(0, 0, -1, true)
+    source = table.concat(source, "\n")
+    local points = ffi.new("cd_nodelist[1]")
+    print("called from "..row.." "..col)
+    points = card.columns_one_up_of_column_c(source, column_name, row, col)
+    for p = 0, (points.size - 1) do
+        api.nvim_buf_add_highlight(0, cns, 'WildMenu'
+            ,tonumber(points.points[(p * 4) + 0])
+            ,tonumber(points.points[(p * 4) + 1])
+            ,tonumber(points.points[(p * 4) + 3]))
+    end
+    print(points.size.." columns upstream of "..column_name)
+end
+
 function card_columns_in_table(table_name)
     ret = card_sa_columns_in_table(table_name)
     if sa_cit == 'CATALOG' then
@@ -243,7 +262,7 @@ function card_jump_to_definition()
     local def = ffi.new("cd_nodelist[1]")
     print()
     def = card.context_definition_c(source, point[0], context_name)
-    if def.points[0] == 0 then
+    if def.points[0] == 1 then
         print('No context named '..context_name..' found')
     end
     vim.cmd('call cursor('..(def.points[0] + 1)..','..(def.points[1] + 1)..')')
@@ -264,6 +283,8 @@ vim.keymap.set('v', '<Leader>j'
     ,':lua highlight_card_downstream_of_table(get_visual_selection())<CR>')
 vim.keymap.set('v', '<Leader>k'
     ,':lua highlight_card_upstream_of_context(get_visual_selection(), vim.fn.getpos("\'<")[2], vim.fn.getpos("\'<")[1])<CR>')
+vim.keymap.set('v', '<Leader>u'
+    ,':lua highlight_card_one_up_of_column(get_visual_selection(), vim.fn.getpos("\'<")[2], vim.fn.getpos("\'<")[1])<CR>')
 
 -- normal mode shortcust
 vim.keymap.set('n', '<Leader>h'
