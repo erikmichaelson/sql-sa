@@ -499,7 +499,8 @@ std::list<TSNode> columns_one_up_of_column(card_runtime * r, TSNode parent_ref, 
     std::list<TSNode> contexts_to_search = references_from_context(r, parent_ref, node_to_string(r->source, parent_ref));
     fprintf(stderr, "%lu contexts to search from the context %s\n", contexts_to_search.size(), node_to_string(r->source, parent_ref));
     for(TSNode c: contexts_to_search) {
-        ts_query_cursor_exec(r->cursor, r->FIELD_DEF_Q, ts_tree_root_node(r->tree));
+        fprintf(stderr, "searching context %s\n", node_to_string(r->source, c));
+        ts_query_cursor_exec(r->cursor, r->FIELD_DEF_Q, c);
         while(ts_query_cursor_next_match(r->cursor, &cur_match)) {
             for(const char * refed_col: refs_from_col_def) {
                 // TODO: think this should work! Check it
@@ -536,7 +537,7 @@ std::list<TSNode> contexts_upstream_of_context(card_runtime * r, TSNode parent_r
         // don't double-add context definitions. Since this will look at just names it will fail if there
         // are multiple subcontexts with the same name in the same DDL document. TODO: fix this
         if(visited.find(node_to_string(r->source, next_context_ref)) != visited.end()) {
-            printf("%s already seen, skipping\n", node_to_string(r->source, next_context_ref));
+            //printf("%s already seen, skipping\n", node_to_string(r->source, next_context_ref));
             continue;
         }
 

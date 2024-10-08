@@ -216,7 +216,6 @@ function highlight_card_one_up_of_column(column_name, row, col)
     local source = api.nvim_buf_get_lines(0, 0, -1, true)
     source = table.concat(source, "\n")
     local points = ffi.new("cd_nodelist[1]")
-    print("called from "..row.." "..col)
     points = card.columns_one_up_of_column_c(source, column_name, row, col)
     for p = 0, (points.size - 1) do
         api.nvim_buf_add_highlight(0, cns, 'WildMenu'

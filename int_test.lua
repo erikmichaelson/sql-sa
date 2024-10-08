@@ -280,11 +280,40 @@ function test_card_contexts_upstream_of()
     return fails
 end
 
+function test_card_columns_one_up_of()
+    vim.api.nvim_buf_call(1,
+            function()
+                highlight_card_one_up_of_column('hmda_county_code',22,57)
+            end)
+    res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
+    exp = { { 3, 0, 13 }, { 2, 1, 13 } }
+    if(not tbl_equals(res, exp, false)) then
+        print("FAILS: columns one up of [combined.hmda_county_code]. Expected"
+                ..vim.inspect(exp)..", got "..vim.inspect(res))
+        fails = fails + 1
+    end
+
+    vim.api.nvim_buf_call(1,
+            function()
+                highlight_card_upstream_of_context('tnaa',38,11)
+            end)
+    res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
+    exp = { { 1, 1, 13 }, { 2, 38, 11 } }
+    if(not tbl_equals(res, exp, false)) then
+        print("FAILS: contexts upstream of [dag.new_table > tnaa]. Expected"
+                ..vim.inspect(exp)..", got "..vim.inspect(res))
+        fails = fails + 1
+    end
+
+    return fails
+end
+
 fails =         test_card_references_from_context()
 fails = fails + test_card_parent_context()
 fails = fails + test_card_references_to_table()
 --fails = fails + test_card_columns_in_table()
 fails = fails + test_card_contexts_upstream_of()
+fails = fails + test_card_columns_one_up_of()
 card_reset()
 print(fails.." test failures")
 
