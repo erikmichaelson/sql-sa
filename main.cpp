@@ -97,6 +97,19 @@ void serialize_queries() {
     fwrite(buf6, 1, len, fd);
     fflush(fd);
 
+    const char * field_refq = "(field) @field";
+    TSQuery * FIELD_REF_Q = ts_query_new(
+        tree_sitter_sql(),
+        field_refq,
+        strlen(field_refq),
+        &q_error_offset,
+        &q_error
+    );
+    const char * buf7 = ts_query_serialize(FIELD_REF_Q, &len);
+    printf("field reference query serialized, %lu bytes\n", len);
+    fwrite(buf7, 1, len, fd);
+    fflush(fd);
+
     fclose(fd);
     return;
 }

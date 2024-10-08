@@ -50,6 +50,7 @@ typedef struct {
     TSQuery *       CONTEXT_DEF_SUB_Q;
     TSQuery *       FIELD_DEF_Q;
     TSQuery *       COLUMN_DEF_Q;
+    TSQuery *       FIELD_REF_Q;
 } card_runtime;
 
 card_runtime * card_runtime_init(const char * source) {
@@ -93,6 +94,10 @@ card_runtime * card_runtime_init(const char * source) {
     fread(buf, 1, 211, fd);
     buf[211] = EOF;
     ret->COLUMN_DEF_Q           = ts_query_deserialize(buf, ret->language);
+
+    fread(buf, 1, 153, fd);
+    buf[153] = EOF;
+    ret->FIELD_REF_Q            = ts_query_deserialize(buf, ret->language);
     fclose(fd);
 
     free(buf);
@@ -484,14 +489,10 @@ std::list<TSNode> columns_one_up_of_column(card_runtime * r, TSNode parent_ref, 
     }
 
     // just for rapid prototyping. Probably a better way to handle this
-    TSQueryError q_error;
-    uint32_t q_error_offset;
-    TSQuery * field_q = ts_query_new(r->language, "(field) @field", strlen("(field) @field"), &q_error_offset, &q_error);
-    ts_query_cursor_exec(r->cursor, field_q, ts_node_parent(col_def));
+    ts_query_cursor_exec(r->cursor, r->FIELD_REF_Q, ts_node_parent(col_def));
     std::list<const char *> refs_from_col_def;
     while(ts_query_cursor_next_match(r->cursor, &cur_match))
         refs_from_col_def.push_front(node_to_string(r->source, cur_match.captures[0].node));
-    ts_query_delete(field_q);
 
     fprintf(stderr, "%lu references from the column definition of %s\n", refs_from_col_def.size(), column_name);
     // holy crap having a slightly fleshed out set of functions is game changing
@@ -499,10 +500,11 @@ std::list<TSNode> columns_one_up_of_column(card_runtime * r, TSNode parent_ref, 
     std::list<TSNode> contexts_to_search = references_from_context(r, parent_ref, node_to_string(r->source, parent_ref));
     fprintf(stderr, "%lu contexts to search from the context %s\n", contexts_to_search.size(), node_to_string(r->source, parent_ref));
     for(TSNode c: contexts_to_search) {
-        fprintf(stderr, "searching context %s\n", node_to_string(r->source, c));
-        ts_query_cursor_exec(r->cursor, r->FIELD_DEF_Q, c);
+        //fprintf(stderr, "searching context %s\n", node_to_string(r->source, c));
+        ts_query_cursor_exec(r->cursor, r->FIELD_DEF_Q, ddl_node_for_name_node(r, context_definition(r, parent_ref, node_to_string(r->source, c))));
         while(ts_query_cursor_next_match(r->cursor, &cur_match)) {
             for(const char * refed_col: refs_from_col_def) {
+                //fprintf(stderr, "looking for col %s\n", refed_col);
                 // TODO: think this should work! Check it
                 if(!strncmp(refed_col
                             ,r->source + ts_node_start_byte(cur_match.captures[0].node)
