@@ -132,6 +132,11 @@ char * get_source_for_field(TSNode term_stmt) {
 }
 */
 
+bool is_subcontext(TSNode n) {
+    return ts_node_symbol(n) == SUBQUERY_NODE || ts_node_symbol(n) == CTE_NODE;
+}
+
+
 std::list<std::string> get_table_names(card_runtime * r) {
     TSQueryMatch table_match;
 
@@ -375,12 +380,19 @@ std::list<TSNode> expand_select_star(card_runtime * r, TSNode star_node) {
     return field_list;
 }
 
-std::list<TSNode> references_to_table(card_runtime * r, const char * table) {
+std::list<TSNode> references_to_context(card_runtime * r, TSNode parent_ref, const char * context_name) {
     std::list<TSNode> reflist;
     TSQueryMatch cur_match;
-    ts_query_cursor_exec(r->cursor, r->REFERENCES_TO_Q, ts_tree_root_node(r->tree));
+
+    TSNode node_to_query = ts_tree_root_node(r->tree);
+    if(is_subcontext(context_definition(r, parent_ref, context_name))) {
+        fprintf(stderr, "context is a subquery\n");
+        node_to_query = ddl_node_for_name_node(r, parent_context(r->tree, ts_node_start_point(parent_ref)));
+    }
+
+    ts_query_cursor_exec(r->cursor, r->REFERENCES_TO_Q, node_to_query);
     while(ts_query_cursor_next_match(r->cursor, &cur_match)) {
-        if(!strncmp(table
+        if(!strncmp(context_name
                     ,r->source + ts_node_start_byte(cur_match.captures[0].node)
                     ,(ts_node_end_byte(cur_match.captures[0].node) - (ts_node_start_byte(cur_match.captures[0].node))))) {
             reflist.push_front(cur_match.captures[0].node);
@@ -419,30 +431,19 @@ std::list<TSNode> references_from_context(card_runtime * r, TSNode parent_ref, c
 }
 
 // returns all tables which are downstream of the requested table
-std::list<TSNode> tables_downstream_of_table(card_runtime * r, const char * table) {
+std::list<TSNode> contexts_downstream_of_context(card_runtime * r, TSNode parent_ref, const char * context_name) {
     // TODO: done. See old commits for thought process
     std::list<TSNode> reflist;
-    std::list<TSNode> dfs = references_to_table(r, table);
+    std::list<TSNode> dfs = references_to_context(r, parent_ref, context_name);
     while(dfs.size() > 0) {
         TSNode next_table = dfs.front();
         dfs.pop_front();
-        //printf("iterating upwards:\tlooking for symbol id: %i\t%s\n", create_table_symbol, ts_language_symbol_name(tree_sitter_sql(), ts_node_symbol(next_table)));
-        //TSSymbol create_table_symbol = ts_language_symbol_for_name(tree_sitter_sql(), "create_table", 12, false);
-        // hard-coding this in after printing it out. Confused why ts_language_symbol_for_name isn't working
-        while( ts_node_symbol(next_table) != 478 ) {
-            next_table = ts_node_parent(next_table);
-        }
-        // tree structure of a create_table statement:
-        // (create_table (keyword_create) (keyword_table) (object_reference schema: (identifier)? name: (identifier)) @definition)
-        // we want the object_reference part
-        next_table = ts_node_child(next_table, 2);
-        // this returns the create_table DDL for each of the downstream tables
+        next_table = parent_context(r->tree, ts_node_start_point(next_table));
         reflist.push_front(next_table);
-        //fprintf(stderr, "looking for references to %s, next DDL to search: %s\n", node_to_string(code.c_str(), dfs.front()),  node_to_string(code.c_str(), next_table));
-        std::list<TSNode> next_up = references_to_table(r, node_to_string(r->source, next_table));
-        // so turns out LIST1.merge(LIST2) is not a "pure function" - it deletes everything from LIST2
-        // good news is merging with reflist wasn't even logically accurate - we add highlights when we 
-        // get them by the create_table handle, not what's returned from refs_to_table, which is object_reference nodes
+        std::list<TSNode> next_up = references_to_context(
+                                            r,
+                                            next_table,
+                                            node_to_string(r->source, next_table));
         dfs.merge(next_up, node_compare);
     }
     return reflist;
@@ -615,11 +616,16 @@ extern "C" {
         return ret;
     }
 
-    cd_nodelist references_to_table_c(const char * code, const char * table) {
+    cd_nodelist references_to_context_c(const char * code, const char * context_name, int cursor_row, int cursor_column) {
         cd_nodelist ret;
         card_runtime * r = card_runtime_init(code);
 
-        std::list<TSNode> res = references_to_table(r, table);
+        TSPoint cursor_point;
+        cursor_point.row = cursor_row;
+        cursor_point.column = cursor_column;
+        TSNode parent_ref = parent_context(r->tree, cursor_point);
+
+        std::list<TSNode> res = references_to_context(r, parent_ref, context_name);
         ret.points = (int *)malloc(sizeof(int) * 4 * res.size());
         int i = 0;
         for(TSNode n: res) {
@@ -635,11 +641,19 @@ extern "C" {
         return ret;
     }
 
-    cd_nodelist tables_downstream_of_table_c(const char * code, const char * table) {
+    cd_nodelist contexts_downstream_of_context_c(const char * code, const char * context_name, int cursor_row, int cursor_column) {
         cd_nodelist ret;
         card_runtime * r = card_runtime_init(code);
+        TSPoint cursor_point;
+        cursor_point.row = cursor_row;
+        cursor_point.column = cursor_column;
+        TSNode parent_ref = parent_context(r->tree, cursor_point);
+        if(ts_node_symbol(parent_ref) == PROGRAM_NODE) {
+            ret.size = 0;
+            return ret;
+        }
 
-        std::list<TSNode> res = tables_downstream_of_table(r, table);
+        std::list<TSNode> res = contexts_downstream_of_context(r, parent_ref, context_name);
         ret.points = (int *)malloc(sizeof(int) * 4 * res.size());
         int i = 0;
         for(TSNode n: res) {

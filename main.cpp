@@ -236,12 +236,18 @@ int main(int argc, char ** argv) {
             printf("DDL not implemented");
             exit(1);
         } else if (!strcmp(argv[3], "references")) {
-            if(argc != 6) { printf("used wrong"); exit(1); }
+            if(argc != 7) { printf("used wrong"); exit(1); }
             if(!strcmp(argv[4], "--to")) {
                 printf("in TO references\n");
                 // all places this table is referenced
-                printf("the following tables reference %s\n", argv[5]);
-                std::list<TSNode> to_reflist = references_to_table(r, argv[5]);
+                TSPoint p;
+                char * str = argv[5];
+                p.row = std::stoi(strtok(str, ","));
+                p.column = std::stoi(strtok(NULL, ","));
+                fprintf(stderr, "point: %i:%i\n", p.row, p.column);
+                TSNode parent_ref = parent_context(r->tree, p);
+                printf("the following contexts reference %s\n", argv[6]);
+                std::list<TSNode> to_reflist = references_to_context(r, parent_ref, argv[6]);
                 to_reflist.sort(node_compare);
                 node_color_map_list to_highlights = reflist_to_highlights(to_reflist);
                 printf("%s\n", format_term_highlights(all_sqls, to_highlights).c_str());
@@ -262,10 +268,15 @@ int main(int argc, char ** argv) {
                 free(from_highlights.ncms);
             }
         } else if (!strcmp(argv[3], "downstream")) {
-            if (argc != 6) { printf("used wrong"); exit(1); }
+            if (argc != 7) { printf("used wrong"); exit(1); }
             if (!strcmp(argv[4], "--of")) {
-                printf("in downstream of\n");
-                std::list<TSNode> downstream_reflist = tables_downstream_of_table(r, argv[5]);
+                TSPoint p;
+                char * str = argv[5];
+                p.row = std::stoi(strtok(str, ","));
+                p.column = std::stoi(strtok(NULL, ","));
+                fprintf(stderr, "point: %i:%i\n", p.row, p.column);
+                TSNode parent_ref = parent_context(r->tree, p);
+                std::list<TSNode> downstream_reflist = contexts_downstream_of_context(r, parent_ref, argv[6]);
                 downstream_reflist.sort(node_compare);
                 node_color_map_list downstream_highlights = reflist_to_highlights(downstream_reflist);
                 printf("%s\n", format_term_highlights(all_sqls, downstream_highlights).c_str());
