@@ -64,7 +64,6 @@ card_runtime * card_runtime_init(const char * source) {
         source,
         strlen(source)
     );
-    // TODO: deserialize this instead of alloc
     ret->cursor = ts_query_cursor_new();
     char * buf = (char *)malloc(500);
     // TODO: make this not a security bloodbath by doing a checksum on the query binaries
@@ -72,7 +71,6 @@ card_runtime * card_runtime_init(const char * source) {
     size_t check = fread(buf, 1, 398, fd);
     buf[398] = EOF;
     ret->REFERENCES_Q      = ts_query_deserialize(buf, ret->language);
-    //fprintf(stderr, "desered the first query!\n");
 
     fread(buf, 1, 242, fd);
     buf[242] = EOF;
@@ -145,13 +143,11 @@ std::list<std::string> get_table_names(card_runtime * r) {
 
 TSNode parent_context(const TSTree * tree, TSPoint clicked) {
     TSNode n = ts_node_descendant_for_point_range(ts_tree_root_node(tree), clicked, clicked);
-    //fprintf(stderr, "parent context starting node %s\n", node_to_string(n));
     // 478 = create_table object_reference, 482 = create_query, 460 = CTE, 628 = subquery, 393 = program (root)
     TSSymbol s;
     while(ts_node_symbol(n) != 393) {
         n = ts_node_parent(n);
         s = ts_node_symbol(n);
-        //printf("node symbol: %s - %i\n", ts_language_symbol_name(ts_tree_language(tree), ts_node_symbol(n)), s);
         if(s == 393 || s == 478 || s == 460 || s == 628) {
             break;
         }
@@ -165,7 +161,6 @@ TSNode parent_context(const TSTree * tree, TSPoint clicked) {
             n = ts_node_next_sibling(n);
     }
     s = ts_node_symbol(n);
-    //printf("node symbol: %s - %i\n", ts_language_symbol_name(ts_tree_language(tree), s), s);
     if(s != OBJ_REF_NODE && s != IDENTIFIER_NODE) {
         printf("ERROR: parent_context returned non object_reference / identifier node %i\n", s);
         return ts_tree_root_node(tree);
@@ -229,19 +224,19 @@ TSNode context_definition(card_runtime * r, TSNode parent_ref, const char * cont
         // Turns out we can have freaking "arbitrarily" nested select statements. Might have to get logically gross here
         ts_query_cursor_set_max_start_depth(r->cursor, 5);
         ts_query_cursor_exec(r->cursor, r->CONTEXT_DEF_SUB_Q, ddl_node_for_name_node(r, parent_ref));
-        //fprintf(stderr, "in context_defintion, exec-ed subquery search, looking for %s\n", context_name);
         while(ts_query_cursor_next_match(r->cursor, &sub_match)) {
             if(!strncmp(context_name
                         ,r->source + ts_node_start_byte(sub_match.captures[0].node)
                         ,(ts_node_end_byte(sub_match.captures[0].node) - ts_node_start_byte(sub_match.captures[0].node)))) {
                             sub_found = 1;
-                            //fprintf(stderr, "in context_defintion, subquery FOUND\n");
                             break;
                         }
         }
     }
     ts_query_cursor_set_max_start_depth(r->cursor, UINT32_MAX);
 
+    // if it doesn't hit either `if` we know there aren't any tables, relevant CTEs or subqueries with that name
+    // ret will stay the default of the whole parse tree's root, which should be handled by caller
     TSNode ret = ts_tree_root_node(r->tree);
     if (table_found)
         ret = table_match.captures[0].node;
@@ -249,11 +244,7 @@ TSNode context_definition(card_runtime * r, TSNode parent_ref, const char * cont
         ret = sub_match.captures[0].node;
     else
         fprintf(stderr, "NOTICE: context definition for %s not found!\n", context_name);
-    // if it doesn't hit either `if` we know there aren't any tables, relevant CTEs or subqueries with that name
-    // ret will stay the default of the whole parse tree's root, which should be handled by caller
-    //fprintf(stderr, "returning from context_defintion\n");
 
-    //printf("after the earthquake (DDL drizzy found)\n");
     return ret;
 }
 
@@ -267,7 +258,6 @@ TSNode context_ddl(card_runtime * r, TSPoint p, const char * context_name) {
         if(ts_node_symbol(hl_node) == OBJ_REF_NODE)
             hl_node = ts_node_parent(hl_node);
         else if(ts_node_symbol(hl_node) == IDENTIFIER_NODE) {
-            //fprintf(stderr, "identifier node: %s\n", node_to_string(source, hl_node));
             if(ts_node_symbol(ts_node_parent(hl_node)) == CTE_NODE) {
                 hl_node = ts_node_parent(hl_node);
             } else {
@@ -276,11 +266,9 @@ TSNode context_ddl(card_runtime * r, TSPoint p, const char * context_name) {
         }
     }
     TSNode def_name_node = context_definition(r, hl_node, context_name);
-    /*fprintf(stderr, "node: %s ts_node_symbol: %s (id: %i)\n", node_to_string(source, def_name_node)
-                    ,ts_language_symbol_name(tree_sitter_sql(), ts_node_symbol(def_name_node)), ts_node_symbol(def_name_node));*/
     if(ts_node_symbol(def_name_node) == 393) {
         fprintf(stderr, "ERROR: context by name %s not found in the source code\n", context_name);
-        return ts_tree_root_node(r->tree);
+        return def_name_node;
     }
     TSNode ret = ddl_node_for_name_node(r, def_name_node);
 
@@ -379,30 +367,25 @@ std::list<TSNode> references_to_context(card_runtime * r, TSNode parent_ref, con
     TSQueryMatch cur_match;
 
     TSNode node_to_query = ts_tree_root_node(r->tree);
-    if(is_subcontext(context_definition(r, parent_ref, context_name))) {
-        fprintf(stderr, "context is a subquery\n");
+    if(is_subcontext(context_definition(r, parent_ref, context_name)))
         node_to_query = ddl_node_for_name_node(r, parent_context(r->tree, ts_node_start_point(parent_ref)));
-    }
 
     ts_query_cursor_exec(r->cursor, r->REFERENCES_Q, node_to_query);
-    while(ts_query_cursor_next_match(r->cursor, &cur_match)) {
+    while(ts_query_cursor_next_match(r->cursor, &cur_match))
         if(!strncmp(context_name
                     ,r->source + ts_node_start_byte(cur_match.captures[0].node)
-                    ,(ts_node_end_byte(cur_match.captures[0].node) - (ts_node_start_byte(cur_match.captures[0].node))))) {
+                    ,(ts_node_end_byte(cur_match.captures[0].node) - (ts_node_start_byte(cur_match.captures[0].node)))))
             reflist.push_front(cur_match.captures[0].node);
-        }
-    }
+
     return reflist;
 }
 
 std::list<TSNode> references_from_context(card_runtime * r, TSNode parent_ref, const char * context_name) {
     std::list<TSNode> reflist;
 
-    //fprintf(stderr, "in refs from, pre anything\n");
     TSNode node = context_definition(r, parent_ref, context_name);
     if(ts_node_symbol(node) == PROGRAM_NODE)
         return reflist;
-    node = ddl_node_for_name_node(r, node);
 
     TSQueryMatch cur_match;
 
@@ -413,13 +396,12 @@ std::list<TSNode> references_from_context(card_runtime * r, TSNode parent_ref, c
     // references. So if this doesn't work from within subcontexts (depth is relative to root)
     // then we'll have to get hacky
     ts_query_cursor_set_max_start_depth(r->cursor, 5);
-    ts_query_cursor_exec(r->cursor, r->REFERENCES_Q, node);
-    while(ts_query_cursor_next_match(r->cursor, &cur_match)) {
+    ts_query_cursor_exec(r->cursor, r->REFERENCES_Q, ddl_node_for_name_node(r, node));
+    while(ts_query_cursor_next_match(r->cursor, &cur_match))
         reflist.push_front(cur_match.captures[0].node);
-    }
+
     // reset shared cursor
     ts_query_cursor_set_max_start_depth(r->cursor, UINT32_MAX);
-    //fprintf(stderr, "in refs from, %i captures captured\n", reflist.size());
 
     return reflist;
 }
@@ -443,7 +425,7 @@ std::list<TSNode> contexts_downstream_of_context(card_runtime * r, TSNode parent
     return reflist;
 }
 
-/* this assumes that column_name is unique in the context. 
+/* this assumes that column_name is unique in the context.
    This is a safe assumption in postgres I believe... maybe not everywhere
    
    So general outline of the algorithm: Similar to the columns_in_table process.
@@ -499,7 +481,6 @@ std::list<TSNode> columns_one_up_of_column(card_runtime * r, TSNode parent_ref, 
         while(ts_query_cursor_next_match(r->cursor, &cur_match)) {
             for(const char * refed_col: refs_from_col_def) {
                 //fprintf(stderr, "looking for col %s\n", refed_col);
-                // TODO: think this should work! Check it
                 if(!strncmp(refed_col
                             ,r->source + ts_node_start_byte(cur_match.captures[0].node)
                             ,(ts_node_end_byte(cur_match.captures[0].node) - ts_node_start_byte(cur_match.captures[0].node)))) {
@@ -541,28 +522,16 @@ std::list<TSNode> contexts_upstream_of_context(card_runtime * r, TSNode parent_r
     std::set<std::string> visited;
     std::string code = r->source;
     std::list<TSNode> dfs = references_from_context(r, parent_ref, context_name);
-    //printf("number of references from %s: %lu \n", context_name, dfs.size());
     visited.insert(context_name);
+    // TODO: including the current context in the highlight / reflist is not consistent with downstream_of. Standardize
     reflist.push_front(context_definition(r, parent_ref, context_name));
     while(dfs.size() > 0) {
         TSNode next_context_ref = dfs.front();
         dfs.pop_front();
-        // don't double-add context definitions. Since this will look at just names it will fail if there
-        // are multiple subcontexts with the same name in the same DDL document. TODO: fix this
-        if(visited.find(node_to_string(r->source, next_context_ref)) != visited.end()) {
-            //printf("%s already seen, skipping\n", node_to_string(r->source, next_context_ref));
+        if(visited.find(node_to_string(r->source, next_context_ref)) != visited.end())
             continue;
-        }
 
         TSNode parent_ref = parent_context(r->tree, ts_node_start_point(next_context_ref));
-
-        /*
-        fprintf(stderr, "ref name: %s, parent context: %s, VISITED: [\n"
-                ,node_to_string(r->source, next_context_ref)
-                ,node_to_string(r->source, parent_ref));
-        for(std::string v: visited)
-            fprintf(stderr, "\t%s\n", v.c_str());
-        fprintf(stderr, "]\n");*/
 
         TSNode cd = context_definition(r, parent_ref, node_to_string(r->source, next_context_ref));
         if(ts_node_symbol(cd) == 393) {
@@ -574,17 +543,13 @@ std::list<TSNode> contexts_upstream_of_context(card_runtime * r, TSNode parent_r
             reflist.push_front(cd);
         }
 
-        /*printf("context name: %s, parent node: %s\n",node_to_string(r->source, next_context_ref), node_to_string(r->source, parent_ref));*/
         std::list<TSNode> refs = references_from_context(
                                     r,
                                     parent_ref,
                                     node_to_string(r->source, next_context_ref));
-        //printf("number of references from %s: %lu \n", node_to_string(r->source, next_context_ref), refs.size());
         if(refs.size() > 0)
             dfs.merge(refs, node_compare);
-        //fprintf(stderr, "Merged\n");
     }
-    //fprintf(stderr, "Returning from upstream of\n");
     return reflist;
 }
 
@@ -608,7 +573,6 @@ extern "C" {
         cursor_point.row = cursor_row;
         cursor_point.column = cursor_column;
         TSNode parent_ref = parent_context(r->tree, cursor_point);
-        // TODO: turn this into a function. Geez probably the 3rd place I use it in the codebase
 
         std::list<TSNode> res = references_from_context(r, parent_ref, context_name);
         ret.points = (int *)malloc(sizeof(int) * 4 * res.size());
@@ -770,7 +734,6 @@ extern "C" {
         cd_stringlist ret;
         card_runtime * r = card_runtime_init(code);
 
-        // TODO: this will only find create table statements. Pass node from neovim so we can do CTEs too
         TSNode ddl = context_definition(r, ts_tree_root_node(r->tree), table);
 
         std::list<TSNode> res = result_columns_for_ddl(r, ddl);
