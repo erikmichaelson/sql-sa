@@ -465,6 +465,7 @@ std::list<TSNode> columns_one_up_of_column(card_runtime * r, TSNode parent_ref, 
         return reflist;
     }
 
+    // don't capture field references in subcontexts of context one up - cheating!
     ts_query_cursor_exec(r->cursor, r->FIELD_REF_Q, ts_node_parent(col_def));
     std::list<const char *> refs_from_col_def;
     while(ts_query_cursor_next_match(r->cursor, &cur_match))
@@ -475,10 +476,12 @@ std::list<TSNode> columns_one_up_of_column(card_runtime * r, TSNode parent_ref, 
     // TODO: cull some parent nodes to search by looking at the aliases before cols
     std::list<TSNode> contexts_to_search = references_from_context(r, parent_ref, node_to_string(r->source, parent_ref));
     //fprintf(stderr, "%lu contexts to search from the context %s\n", contexts_to_search.size(), node_to_string(r->source, parent_ref));
+    TSQueryCursor * clean_curse = ts_query_cursor_new();
+    ts_query_cursor_set_max_start_depth(clean_curse, 2);
     for(TSNode c: contexts_to_search) {
         //fprintf(stderr, "searching context %s\n", node_to_string(r->source, c));
-        ts_query_cursor_exec(r->cursor, r->FIELD_DEF_Q, ddl_node_for_name_node(r, context_definition(r, parent_ref, node_to_string(r->source, c))));
-        while(ts_query_cursor_next_match(r->cursor, &cur_match)) {
+        ts_query_cursor_exec(clean_curse, r->FIELD_DEF_Q, ddl_node_for_name_node(r, context_definition(r, parent_ref, node_to_string(r->source, c))));
+        while(ts_query_cursor_next_match(clean_curse, &cur_match)) {
             for(const char * refed_col: refs_from_col_def) {
                 //fprintf(stderr, "looking for col %s\n", refed_col);
                 if(!strncmp(refed_col
@@ -491,6 +494,7 @@ std::list<TSNode> columns_one_up_of_column(card_runtime * r, TSNode parent_ref, 
             }
         }
     }
+    ts_query_cursor_delete(clean_curse);
     return reflist;
 }
 
@@ -504,6 +508,7 @@ std::list<TSNode> columns_one_down_of_column(card_runtime * r, TSNode parent_ref
     std::list<TSNode> reflist;
     std::list<TSNode> contexts_to_search = references_to_context(r, parent_ref, node_to_string(r->source, parent_ref));
     TSQueryMatch cur_match;
+    ts_query_cursor_set_max_start_depth(r->cursor, 5);
     for(TSNode c: contexts_to_search) {
         ts_query_cursor_exec(r->cursor, r->FIELD_REF_Q, ddl_node_for_name_node(r, parent_context(r->tree, ts_node_start_point(c))));
         while(ts_query_cursor_next_match(r->cursor, &cur_match)) {
@@ -513,6 +518,7 @@ std::list<TSNode> columns_one_down_of_column(card_runtime * r, TSNode parent_ref
                 reflist.push_front(cur_match.captures[0].node);
         }
     }
+    ts_query_cursor_set_max_start_depth(r->cursor, UINT32_MAX);
 
     return reflist;
 }
