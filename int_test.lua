@@ -41,6 +41,7 @@ vim.cmd(":bp")
 
 function test_card_parent_context()
     fails = 0
+    print("parent context of dag.new_table")
     vim.api.nvim_buf_call(1,
             function() 
                 vim.cmd('call cursor(37, 0)') -- hacky but functional
@@ -49,11 +50,12 @@ function test_card_parent_context()
     res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
     exp = { { 1, 27, 13 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAIL: parent context of dag.new_table. Expected "..vim.inspect(exp)..", got "..vim.inspect(res))
+        print("FAIL: Expected "..vim.inspect(exp)..", got "..vim.inspect(res).."\n============")
         fails = fails + 1
     end
 
     -- test a CTE
+    print("parent context of dag.new_table > cust_level")
     vim.api.nvim_buf_call(1,
             function() 
                 vim.cmd('call cursor(31, 0)') -- hacky but functional
@@ -62,11 +64,12 @@ function test_card_parent_context()
     res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
     exp = { { 1, 28, 9 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAIL: parent context of dag.new_table > cust_level. Expected "..vim.inspect(exp)..", got "..vim.inspect(res))
+        print("FAIL: Expected "..vim.inspect(exp)..", got "..vim.inspect(res).."\n============")
         fails = fails + 1
     end
 
     -- test a subquery
+    print("parent context of dag.new_table > tnaa")
     vim.api.nvim_buf_call(1,
             function() 
                 vim.cmd('call cursor(38, 30)')
@@ -75,11 +78,12 @@ function test_card_parent_context()
     res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
     exp = { { 1, 38, 11 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAIL: parent context of dag.new_table > tnaa. Expected "..vim.inspect(exp)..", got "..vim.inspect(res))
+        print("FAIL: Expected "..vim.inspect(exp)..", got "..vim.inspect(res).."\n============")
         fails = fails + 1
     end
 
     -- test the start of a create_table statement
+    print("parent context of etl.leads")
     vim.api.nvim_buf_call(1,
             function() 
                 vim.cmd('call cursor(1, 1)')
@@ -88,11 +92,12 @@ function test_card_parent_context()
     res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
     exp = { { 1, 0, 13 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAIL: parent context of etl.leads. Expected "..vim.inspect(exp)..", got "..vim.inspect(res))
+        print("FAIL: Expected "..vim.inspect(exp)..", got "..vim.inspect(res).."\n============")
         fails = fails + 1
     end
 
     -- test a create table that's not a create_query
+    print("parent context of etl.leads")
     vim.api.nvim_buf_call(1,
             function() 
                 vim.cmd('call cursor(6, 10)')
@@ -101,36 +106,39 @@ function test_card_parent_context()
     res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
     exp = { { 1, 3, 13 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAIL: parent context of etl.leads. Expected "..vim.inspect(exp)..", got "..vim.inspect(res))
+        print("FAIL: Expected "..vim.inspect(exp)..", got "..vim.inspect(res).."\n============")
         fails = fails + 1
     end
 
     return fails
 end
 
-function test_card_references_to_table()
-    highlight_card_references_to_table('dag.new_table')
+function test_card_references_to_context()
+    print("refs to dag.new_table")
+    highlight_card_references_to_context('dag.new_table', 38, 45)
     res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
     exp = { { 1, 50, 9 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAIL: refs to dag.new_table")
+        print("FAIL: Expected "..vim.inspect(exp)..", got "..vim.inspect(res).."\n============")
         fails = fails + 1
     end
 
-    highlight_card_references_to_table('etl.leads')
+    print("refs to etl.leads")
+    highlight_card_references_to_context('etl.leads', 24, 5)
     res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
     exp = { { 4, 24, 14 }, { 3, 31, 13 }, { 2, 35, 9 }, { 1, 44, 14 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAIL: refs to etl.leads. Expected "..vim.inspect(exp)..", got "..vim.inspect(res))
+        print("FAIL: Expected "..vim.inspect(exp)..", got "..vim.inspect(res).."\n============")
         fails = fails + 1
     end
 
     -- unreferenced
-    highlight_card_references_to_table('dag.three_deep')
+    print("refs to dag.three_deep")
+    highlight_card_references_to_context('dag.three_deep', 5, 10)
     res = vim.api.nvim_buf_get_extmarks(1, cns, 0, -1, {})
     exp = { }
     if(not tbl_equals(res, exp, false)) then
-        print("FAIL: refs to dag.three_deep. Expected "..vim.inspect(exp)..", got "..vim.inspect(res))
+        print("FAIL: Expected "..vim.inspect(exp)..", got "..vim.inspect(res).."\n============")
         fails = fails + 1
     end
 
@@ -310,7 +318,7 @@ end
 
 fails =         test_card_references_from_context()
 fails = fails + test_card_parent_context()
-fails = fails + test_card_references_to_table()
+fails = fails + test_card_references_to_context()
 --fails = fails + test_card_columns_in_table()
 fails = fails + test_card_contexts_upstream_of()
 fails = fails + test_card_columns_one_up_of()

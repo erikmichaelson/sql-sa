@@ -18,31 +18,18 @@ void serialize_queries() {
     TSQueryError q_error;
     uint32_t q_error_offset;
 
-    const char * q = "[ (relation (object_reference schema: (identifier)? name: (identifier)) @reference)\
+    const char * refq = "[ (relation (object_reference schema: (identifier)? name: (identifier))@reference alias: (identifier)? @alias)\
                         ((subquery) (keyword_as)? (identifier) @reference) ]";
-    TSQuery * REFERENCES_FROM_Q = ts_query_new(
+    TSQuery * REFERENCES_Q = ts_query_new(
         tree_sitter_sql(),
-        q,
-        strlen(q),
+        refq,
+        strlen(refq),
         &q_error_offset,
         &q_error
     );
-    const char * buf1 = ts_query_serialize(REFERENCES_FROM_Q, &len);
+    const char * buf1 = ts_query_serialize(REFERENCES_Q, &len);
     printf("references from query serialized, %lu bytes\n", len);
     fwrite(buf1, 1, len, fd);
-    fflush(fd);
-
-    const char * toq = "(relation (object_reference schema: (identifier)? name: (identifier))@reference alias: (identifier)? @alias)";
-    TSQuery * REFERENCES_TO_Q = ts_query_new(
-        tree_sitter_sql(),
-        toq,
-        strlen(toq),
-        &q_error_offset,
-        &q_error
-    );
-    const char * buf2 = ts_query_serialize(REFERENCES_TO_Q, &len);
-    printf("references to query serialized, %lu bytes\n", len);
-    fwrite(buf2, 1, len, fd);
     fflush(fd);
 
     const char * cdtq = "(create_table (object_reference schema: (identifier)? name: (identifier)) @definition)";
@@ -237,15 +224,15 @@ int main(int argc, char ** argv) {
             exit(1);
         } else if (!strcmp(argv[3], "references")) {
             if(argc != 7) { printf("used wrong"); exit(1); }
+            TSPoint p;
+            char * str = argv[5];
+            p.row = std::stoi(strtok(str, ","));
+            p.column = std::stoi(strtok(NULL, ","));
+            fprintf(stderr, "point: %i:%i\n", p.row, p.column);
+            TSNode parent_ref = parent_context(r->tree, p);
             if(!strcmp(argv[4], "--to")) {
                 printf("in TO references\n");
                 // all places this table is referenced
-                TSPoint p;
-                char * str = argv[5];
-                p.row = std::stoi(strtok(str, ","));
-                p.column = std::stoi(strtok(NULL, ","));
-                fprintf(stderr, "point: %i:%i\n", p.row, p.column);
-                TSNode parent_ref = parent_context(r->tree, p);
                 printf("the following contexts reference %s\n", argv[6]);
                 std::list<TSNode> to_reflist = references_to_context(r, parent_ref, argv[6]);
                 to_reflist.sort(node_compare);
@@ -255,12 +242,12 @@ int main(int argc, char ** argv) {
             } else if (!strcmp(argv[4], "--from")) {
                 printf("in FROM references\n");
                 // all tables this table references 
-                std::list<TSNode> from_reflist = references_from_context(r, ts_tree_root_node(r->tree), argv[5]);
+                std::list<TSNode> from_reflist = references_from_context(r, parent_ref, argv[6]);
                 if(!from_reflist.size()) {
                     printf("Zero tables are referenced from %s\n", argv[5]);
                     exit(1);
                 }
-                printf("the following %lu tables are referenced from %s\n", from_reflist.size(), argv[5]);
+                printf("the following %lu tables are referenced from %s\n", from_reflist.size(), argv[6]);
                 from_reflist.sort(node_compare);
                 node_color_map_list from_highlights = reflist_to_highlights(from_reflist);
                 std::string ret = format_term_highlights(all_sqls, from_highlights);
@@ -285,13 +272,19 @@ int main(int argc, char ** argv) {
                 printf("used wrong"); exit(1);
             }
         } else if (!strcmp(argv[3], "upstream")) {
-            if (argc != 6) { printf("used wrong"); exit(1); }
+            if (argc != 7) { printf("used wrong"); exit(1); }
+            TSPoint p;
+            char * str = argv[5];
+            p.row = std::stoi(strtok(str, ","));
+            p.column = std::stoi(strtok(NULL, ","));
+            fprintf(stderr, "point: %i:%i\n", p.row, p.column);
+            TSNode parent_ref = parent_context(r->tree, p);
             if (!strcmp(argv[4], "--of")) {
                 printf("in upstream of\n");
-                std::list<TSNode> upstream_reflist = contexts_upstream_of_context(r, ts_tree_root_node(r->tree), argv[5]);
+                std::list<TSNode> upstream_reflist = contexts_upstream_of_context(r, parent_ref, argv[6]);
                 upstream_reflist.sort(node_compare);
                 node_color_map_list upstream_highlights = reflist_to_highlights(upstream_reflist);
-                printf("%lu contexts upstream of %s\n", upstream_reflist.size(), argv[5]);
+                printf("%lu contexts upstream of %s\n", upstream_reflist.size(), argv[6]);
                 printf("%s\n", format_term_highlights(all_sqls, upstream_highlights).c_str());
                 free(upstream_highlights.ncms);
             } else {
