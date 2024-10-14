@@ -41,7 +41,6 @@ end
 -------  CARD  -------
 local ffi = require('ffi')
 
---print "Hello from nvim_card"
 ffi.cdef[[
     typedef struct TSTree TSTree;
     typedef struct {
@@ -72,6 +71,7 @@ ffi.cdef[[
     cd_nodelist parent_context_c(const char * code, TSPoint clicked);
     cd_nodelist context_ddl_c(const char * code, TSPoint clicked);
     cd_nodelist context_definition_c(const char * code, TSPoint clicked, const char * context_name);
+    cd_nodelist field_definitions_in_context_c(const char * code, const char * context_name, int cursor_row, int cursor_column);
 ]]
 
 -- hopefully it can figure out card = card.so, not cardlib.so
@@ -121,8 +121,6 @@ function highlight_card_context_ddl()
     source = table.concat(source, '\n')
     local res = card.context_ddl_c(source, point[0])
 
-    --print('['..tonumber(res.points[0])..':'..tonumber(res.points[1])..'],['
-    --                    ..tonumber(res.points[2])..':'..tonumber(res.points[3])..']')
     multiline_highlight(tonumber(res.points[0]), tonumber(res.points[1])
                         ,tonumber(res.points[2]), tonumber(res.points[3]))
 end
@@ -144,6 +142,22 @@ function highlight_card_parent_context()
         ,res.points[0]
         ,res.points[1]
         ,res.points[3])
+end
+
+function highlight_card_field_defs_in_context(context_name, row, col)
+    api.nvim_buf_clear_namespace(0, cns, 0, -1)
+    vim.cmd('syntax off')
+    local source = api.nvim_buf_get_lines(0, 0, -1, true)
+    source = table.concat(source, "\n")
+    local points = card.field_definitions_in_context_c(source, context_name, row, col)
+    for p = 0, (points.size - 1) do
+        multiline_highlight(
+             tonumber(points.points[(p * 4) + 0])
+            ,tonumber(points.points[(p * 4) + 1])
+            ,tonumber(points.points[(p * 4) + 2])
+            ,tonumber(points.points[(p * 4) + 3]))
+    end
+    print (points.size.." fields defined in "..context_name)
 end
 
 function highlight_card_references_from_context(context_name, row, col)
@@ -305,6 +319,8 @@ vim.keymap.set('v', '<Leader>u'
     ,':lua highlight_card_one_up_of_column(get_visual_selection(), vim.fn.getpos("\'<")[2], vim.fn.getpos("\'<")[1])<CR>')
 vim.keymap.set('v', '<Leader>d'
     ,':lua highlight_card_one_down_of_column(get_visual_selection(), vim.fn.getpos("\'<")[2], vim.fn.getpos("\'<")[1])<CR>')
+vim.keymap.set('v', '<Leader>c'
+    ,':lua highlight_card_field_defs_in_context(get_visual_selection(), vim.fn.getpos("\'<")[2], vim.fn.getpos("\'<")[1])<CR>')
 
 -- normal mode shortcust
 vim.keymap.set('n', '<Leader>h'
