@@ -359,8 +359,9 @@ int main(int argc, char ** argv) {
                 std::list<TSNode> reflist = columns_one_up_of_column(r, pc, argv[5]);
                 reflist.sort(node_compare);
                 node_color_map_list oneup_highlights = reflist_to_highlights(reflist);
-                printf("%lu contexts upstream of %s\n", reflist.size(), argv[5]);
-                printf("\n%s\n", format_term_highlights(all_sqls, oneup_highlights).c_str());
+                printf("%lu columns upstream of %s\n", reflist.size(), argv[5]);
+                if(reflist.size() > 0)
+                    printf("\n%s\n", format_term_highlights(all_sqls, oneup_highlights).c_str());
                 free(oneup_highlights.ncms);
             }
         }
@@ -369,3 +370,12 @@ int main(int argc, char ** argv) {
 
     return 0;
 }
+(select
+  (select_expression
+    (term [value: (field 
+                    . (object_reference)? @col_source
+                      name: (identifier) @definition
+                  )
+                    alias: (identifier)
+                    (all_fields) @definition
+                  ] )))
