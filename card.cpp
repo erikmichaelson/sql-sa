@@ -498,38 +498,56 @@ std::list<TSNode> columns_one_up_of_column(card_runtime * r, TSNode parent_ref, 
 
     // don't capture field references in subcontexts of context one up - cheating!
     ts_query_cursor_exec(r->cursor, r->FIELD_REF_Q, ts_node_parent(col_def));
-    std::list<const char *> refs_from_col_def;
+    std::list<TSNode> refs_from_col_def;
     while(ts_query_cursor_next_match(r->cursor, &cur_match)) {
         int fnn = cur_match.capture_count - 1;
-        refs_from_col_def.push_front(node_to_string(r->source, cur_match.captures[fnn].node));
+        refs_from_col_def.push_front(cur_match.captures[fnn].node);
     }
     if(refs_from_col_def.size() == 0) {
         fprintf(stderr,"NOTICE: no field references in the column definition\n");
         return reflist;
     }
 
-    //fprintf(stderr, "%lu references from the column definition of %s\n", refs_from_col_def.size(), column_name);
     // holy crap having a slightly fleshed out set of functions is game changing
     // TODO: cull some parent nodes to search by looking at the aliases before cols
+    //fprintf(stderr, "%lu references from the column definition of %s\n", refs_from_col_def.size(), column_name);
     std::list<TSNode> contexts_to_search = references_from_context(r, parent_ref, node_to_string(r->source, parent_ref));
     //fprintf(stderr, "%lu contexts to search from the context %s\n", contexts_to_search.size(), node_to_string(r->source, parent_ref));
-    for(TSNode c: contexts_to_search) {
-        TSNode cd = context_definition(r, parent_ref, node_to_string(r->source, c));
-        if(ts_node_symbol(cd) == PROGRAM_NODE)
-            continue;
-        //fprintf(stderr, "searching context %s, %s\n", node_to_string(r->source, c)
-        //            ,ts_language_symbol_name(r->language, ts_node_symbol(ddl_node_for_name_node(r, cd))));
-        ts_query_cursor_exec(clean_curse, r->FIELD_DEF_Q, ddl_node_for_name_node(r, cd));
-        while(ts_query_cursor_next_match(clean_curse, &cur_match)) {
-            for(const char * refed_col: refs_from_col_def) {
+    for(TSNode refed_col: refs_from_col_def) {
+        for(TSNode c: contexts_to_search) {
+            //fprintf(stderr, "%i child nodes in the parent node: %s\n"
+            //        ,ts_node_child_count(ts_node_parent(ts_node_parent(refed_col)))
+            //        ,node_to_string(r->source, ts_node_parent(ts_node_parent(refed_col))));
+            // handle object_reference field match to table or alias
+            if(ts_node_child_count(ts_node_parent(refed_col)) == 3) {
+                // INVARIANT: the alias node will ALWAYS be the last node in an `relation` node
+                TSNode parent = ts_node_parent(c);
+                int alias_index = ts_node_child_count(parent) - 1;
+                if(alias_index)
+                    //fprintf(stderr, "comparing column source %s to context alias %s\n"
+                    //              ,node_to_string(r->source, ts_node_prev_sibling(ts_node_prev_sibling(refed_col)))
+                    //              ,node_to_string(r->source, ts_node_child(parent, alias_index)));
+                    // the below is true IFF the alias of the last table is NOT the same string as the this contexts' alias
+                    if(strncmp(node_to_string(r->source, ts_node_prev_sibling(ts_node_prev_sibling(refed_col)))
+                              ,r->source + ts_node_start_byte(ts_node_child(parent, alias_index))
+                              ,ts_node_end_byte(ts_node_child(parent, alias_index)) - ts_node_start_byte(ts_node_child(parent, alias_index))))
+                        continue;
+            }
+            TSNode cd = context_definition(r, parent_ref, node_to_string(r->source, c));
+            if(ts_node_symbol(cd) == PROGRAM_NODE)
+                continue;
+            //fprintf(stderr, "searching context %s, %s\n", node_to_string(r->source, c)
+            //            ,ts_language_symbol_name(r->language, ts_node_symbol(ddl_node_for_name_node(r, cd))));
+            ts_query_cursor_exec(clean_curse, r->FIELD_DEF_Q, ddl_node_for_name_node(r, cd));
+            while(ts_query_cursor_next_match(clean_curse, &cur_match)) {
                 int fnn = cur_match.capture_count - 1;
-                //fprintf(stderr, "looking for col %s, found query match %.*s\n", refed_col
+                //fprintf(stderr, "looking for col %s, found query match %.*s\n", node_to_string(r->source, refed_col)
                 //      ,(ts_node_end_byte(cur_match.captures[fnn].node) - ts_node_start_byte(cur_match.captures[fnn].node))
                 //      ,r->source + ts_node_start_byte(cur_match.captures[fnn].node));
-                if(!strncmp(refed_col
+                if(!strncmp(node_to_string(r->source, refed_col)
                             ,r->source + ts_node_start_byte(cur_match.captures[fnn].node)
-                            ,strlen(refed_col))) {
-                    refs_from_col_def.remove(refed_col);
+                            ,ts_node_end_byte(refed_col) - ts_node_start_byte(refed_col))) {
+                    refs_from_col_def.remove_if( [](const TSNode n) { return ts_node_start_byte(n) > ts_node_start_byte(n); } );
                     reflist.push_front(cur_match.captures[fnn].node);
                     break;
                 }

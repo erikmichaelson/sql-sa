@@ -368,6 +368,32 @@ function test_card_columns_one_up_of()
         fails = fails + 1
     end
 
+    -- pseudo bind column with an alias but is defined in two tables
+    vim.api.nvim_buf_call(cll_buf,
+            function()
+                highlight_card_one_up_of_column('last_name',107,14)
+            end)
+    res = vim.api.nvim_buf_get_extmarks(cll_buf, cns, 0, -1, {})
+    exp = { { 1, 104, 44 } }
+    if(not tbl_equals(res, exp, false)) then
+        print("FAILS: columns one up of [take_your_pick.first_name]. Expected"
+                ..vim.inspect(exp)..", got "..vim.inspect(res))
+        fails = fails + 1
+    end
+
+    -- pseudo bind with two tables (other column - coming from other table)
+    vim.api.nvim_buf_call(cll_buf,
+            function()
+                highlight_card_one_up_of_column('first_name',107,14)
+            end)
+    res = vim.api.nvim_buf_get_extmarks(cll_buf, cns, 0, -1, {})
+    exp = { { 1, 103, 32 } }
+    if(not tbl_equals(res, exp, false)) then
+        print("FAILS: columns one up of [take_your_pick.last_name]. Expected"
+                ..vim.inspect(exp)..", got "..vim.inspect(res))
+        fails = fails + 1
+    end
+
     --vim.cmd(":view test/dag_test.sql")
     vim.api.nvim_buf_call(dag_buf,
             function()
