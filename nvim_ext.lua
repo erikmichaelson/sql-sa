@@ -228,14 +228,14 @@ function highlight_card_upstream_of_context(context_name, row, col)
 end
 
 function highlight_card_one_up_of_column(column_name, row, col)
-    api.nvim_buf_clear_namespace(0, cns, 0, -1)
+    api.nvim_buf_clear_namespace(api.nvim_get_current_buf(), cns, 0, -1)
     vim.cmd('syntax off')
-    local source = api.nvim_buf_get_lines(0, 0, -1, true)
+    local source = api.nvim_buf_get_lines(api.nvim_get_current_buf(), 0, -1, true)
     source = table.concat(source, "\n")
     local points = ffi.new("cd_nodelist[1]")
     points = card.columns_one_up_of_column_c(source, column_name, row, col)
     for p = 0, (points.size - 1) do
-        api.nvim_buf_add_highlight(0, cns, 'WildMenu'
+        api.nvim_buf_add_highlight(api.nvim_get_current_buf(), cns, 'WildMenu'
             ,tonumber(points.points[(p * 4) + 0])
             ,tonumber(points.points[(p * 4) + 1])
             ,tonumber(points.points[(p * 4) + 3]))

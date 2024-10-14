@@ -58,7 +58,11 @@ void serialize_queries() {
     fwrite(buf4, 1, len, fd);
     fflush(fd);
 
-    const char * fldq = "(select (select_expression (term [value: (field . name: (identifier) . ) alias: (identifier) (all_fields)] @fieldname)))";
+    const char * fldq = "(select (select_expression (term [\
+              (all_fields) @d\
+              (field (object_reference)? @cs\
+                name: (identifier) @d)\
+              alias: (identifier) @d ] )))";
     TSQuery * FIELD_DEF_Q = ts_query_new(
         tree_sitter_sql(),
         fldq,
@@ -84,7 +88,7 @@ void serialize_queries() {
     fwrite(buf6, 1, len, fd);
     fflush(fd);
 
-    const char * field_refq = "(field) @field";
+    const char * field_refq = "(field (object_reference)? @source name: (identifier) @field)";
     TSQuery * FIELD_REF_Q = ts_query_new(
         tree_sitter_sql(),
         field_refq,
@@ -370,12 +374,3 @@ int main(int argc, char ** argv) {
 
     return 0;
 }
-(select
-  (select_expression
-    (term [value: (field 
-                    . (object_reference)? @col_source
-                      name: (identifier) @definition
-                  )
-                    alias: (identifier)
-                    (all_fields) @definition
-                  ] )))

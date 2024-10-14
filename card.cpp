@@ -80,16 +80,16 @@ card_runtime * card_runtime_init(const char * source) {
     buf[300] = EOF;
     ret->CONTEXT_DEF_SUB_Q      = ts_query_deserialize(buf, ret->language);
 
-    fread(buf, 1, 365, fd);
-    buf[365] = EOF;
+    fread(buf, 1, 397, fd);
+    buf[397] = EOF;
     ret->FIELD_DEF_Q            = ts_query_deserialize(buf, ret->language);
 
     fread(buf, 1, 211, fd);
     buf[211] = EOF;
     ret->COLUMN_DEF_Q           = ts_query_deserialize(buf, ret->language);
 
-    fread(buf, 1, 153, fd);
-    buf[153] = EOF;
+    fread(buf, 1, 225, fd);
+    buf[225] = EOF;
     ret->FIELD_REF_Q            = ts_query_deserialize(buf, ret->language);
     fclose(fd);
 
@@ -289,8 +289,13 @@ std::list<TSNode> field_definitions_in_context(card_runtime * r, TSNode parent_r
     TSQueryCursor * clean_curse = ts_query_cursor_new();
     ts_query_cursor_set_max_start_depth(clean_curse, 4);
     ts_query_cursor_exec(clean_curse, r->FIELD_DEF_Q, ddl_node_for_name_node(r, node));
-    while(ts_query_cursor_next_match(clean_curse, &cur_match))
-        field_list.push_front(cur_match.captures[0].node);
+    while(ts_query_cursor_next_match(clean_curse, &cur_match)) {
+        // aliased column. Discard for now
+        if(cur_match.capture_count == 2)
+            field_list.push_front(cur_match.captures[1].node);
+        else
+            field_list.push_front(cur_match.captures[0].node);
+    }
     ts_query_cursor_delete(clean_curse);
     return field_list;
 }
@@ -476,11 +481,13 @@ std::list<TSNode> columns_one_up_of_column(card_runtime * r, TSNode parent_ref, 
     int col_found = 0;
     TSNode col_def;
     while(ts_query_cursor_next_match(clean_curse, &cur_match)) {
+        // fnn = field_name_num
+        int fnn = cur_match.capture_count - 1;
         if(!strncmp(column_name
-                    ,r->source + ts_node_start_byte(cur_match.captures[0].node)
-                    ,(ts_node_end_byte(cur_match.captures[0].node) - ts_node_start_byte(cur_match.captures[0].node)))) {
+                   ,r->source + ts_node_start_byte(cur_match.captures[fnn].node)
+                   ,strlen(column_name))) {
             col_found = 1;
-            col_def = cur_match.captures[0].node;
+            col_def = cur_match.captures[fnn].node;
             break;
         }
     }
@@ -492,35 +499,38 @@ std::list<TSNode> columns_one_up_of_column(card_runtime * r, TSNode parent_ref, 
     // don't capture field references in subcontexts of context one up - cheating!
     ts_query_cursor_exec(r->cursor, r->FIELD_REF_Q, ts_node_parent(col_def));
     std::list<const char *> refs_from_col_def;
-    while(ts_query_cursor_next_match(r->cursor, &cur_match))
-        refs_from_col_def.push_front(node_to_string(r->source, cur_match.captures[0].node));
+    while(ts_query_cursor_next_match(r->cursor, &cur_match)) {
+        int fnn = cur_match.capture_count - 1;
+        refs_from_col_def.push_front(node_to_string(r->source, cur_match.captures[fnn].node));
+    }
     if(refs_from_col_def.size() == 0) {
         fprintf(stderr,"NOTICE: no field references in the column definition\n");
         return reflist;
     }
 
-    fprintf(stderr, "%lu references from the column definition of %s\n", refs_from_col_def.size(), column_name);
+    //fprintf(stderr, "%lu references from the column definition of %s\n", refs_from_col_def.size(), column_name);
     // holy crap having a slightly fleshed out set of functions is game changing
     // TODO: cull some parent nodes to search by looking at the aliases before cols
     std::list<TSNode> contexts_to_search = references_from_context(r, parent_ref, node_to_string(r->source, parent_ref));
-    fprintf(stderr, "%lu contexts to search from the context %s\n", contexts_to_search.size(), node_to_string(r->source, parent_ref));
+    //fprintf(stderr, "%lu contexts to search from the context %s\n", contexts_to_search.size(), node_to_string(r->source, parent_ref));
     for(TSNode c: contexts_to_search) {
         TSNode cd = context_definition(r, parent_ref, node_to_string(r->source, c));
         if(ts_node_symbol(cd) == PROGRAM_NODE)
             continue;
-        fprintf(stderr, "searching context %s, %s\n", node_to_string(r->source, c)
-                      ,ts_language_symbol_name(r->language, ts_node_symbol(ddl_node_for_name_node(r, cd))));
+        //fprintf(stderr, "searching context %s, %s\n", node_to_string(r->source, c)
+        //            ,ts_language_symbol_name(r->language, ts_node_symbol(ddl_node_for_name_node(r, cd))));
         ts_query_cursor_exec(clean_curse, r->FIELD_DEF_Q, ddl_node_for_name_node(r, cd));
         while(ts_query_cursor_next_match(clean_curse, &cur_match)) {
             for(const char * refed_col: refs_from_col_def) {
-                fprintf(stderr, "looking for col %s, found query match %.*s\n", refed_col
-                        ,(ts_node_end_byte(cur_match.captures[0].node) - ts_node_start_byte(cur_match.captures[0].node))
-                        ,r->source + ts_node_start_byte(cur_match.captures[0].node));
+                int fnn = cur_match.capture_count - 1;
+                //fprintf(stderr, "looking for col %s, found query match %.*s\n", refed_col
+                //      ,(ts_node_end_byte(cur_match.captures[fnn].node) - ts_node_start_byte(cur_match.captures[fnn].node))
+                //      ,r->source + ts_node_start_byte(cur_match.captures[fnn].node));
                 if(!strncmp(refed_col
-                            ,r->source + ts_node_start_byte(cur_match.captures[0].node)
-                            ,(ts_node_end_byte(cur_match.captures[0].node) - ts_node_start_byte(cur_match.captures[0].node)))) {
+                            ,r->source + ts_node_start_byte(cur_match.captures[fnn].node)
+                            ,strlen(refed_col))) {
                     refs_from_col_def.remove(refed_col);
-                    reflist.push_front(cur_match.captures[0].node);
+                    reflist.push_front(cur_match.captures[fnn].node);
                     break;
                 }
             }
