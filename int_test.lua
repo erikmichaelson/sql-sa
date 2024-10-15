@@ -322,7 +322,7 @@ function test_card_columns_one_up_of()
                 highlight_card_one_up_of_column('start_dt',92,65)
             end)
     res = vim.api.nvim_buf_get_extmarks(cll_buf, cns, 0, -1, {})
-    exp = { { 1, 94, 30 } }
+    exp = { { 1, 95, 30 } }
     if(not tbl_equals(res, exp, false)) then
         print("FAILS: columns one up of [dag.new_table.tnaa.start_dt]. Expected"
                 ..vim.inspect(exp)..", got "..vim.inspect(res))
@@ -374,9 +374,9 @@ function test_card_columns_one_up_of()
                 highlight_card_one_up_of_column('last_name',107,14)
             end)
     res = vim.api.nvim_buf_get_extmarks(cll_buf, cns, 0, -1, {})
-    exp = { { 1, 104, 44 } }
+    exp = { { 1, 105, 44 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAILS: columns one up of [take_your_pick.first_name]. Expected"
+        print("FAILS: columns one up of [take_your_pick.last_name]. Expected"
                 ..vim.inspect(exp)..", got "..vim.inspect(res))
         fails = fails + 1
     end
@@ -387,9 +387,35 @@ function test_card_columns_one_up_of()
                 highlight_card_one_up_of_column('first_name',107,14)
             end)
     res = vim.api.nvim_buf_get_extmarks(cll_buf, cns, 0, -1, {})
-    exp = { { 1, 103, 32 } }
+    exp = { { 1, 104, 32 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAILS: columns one up of [take_your_pick.last_name]. Expected"
+        print("FAILS: columns one up of [take_your_pick.first_name]. Expected"
+                ..vim.inspect(exp)..", got "..vim.inspect(res))
+        fails = fails + 1
+    end
+
+    -- get column from column_definition DDL (not create_query)
+    vim.api.nvim_buf_call(cll_buf,
+            function()
+                highlight_card_one_up_of_column('cust_ssn',87,16)
+            end)
+    res = vim.api.nvim_buf_get_extmarks(cll_buf, cns, 0, -1, {})
+    exp = { { 1, 78, 27 } }
+    if(not tbl_equals(res, exp, false)) then
+        print("FAILS: columns one up of [dag.new_table > cust_level.cust_ssn]. Expected"
+                ..vim.inspect(exp)..", got "..vim.inspect(res))
+        fails = fails + 1
+    end
+ 
+    -- this segfaulted it for some reason
+    vim.api.nvim_buf_call(cll_buf,
+            function()
+                highlight_card_one_up_of_column('owner_id',92,50)
+            end)
+    res = vim.api.nvim_buf_get_extmarks(cll_buf, cns, 0, -1, {})
+    exp = { { 1, 78, 89 } }
+    if(not tbl_equals(res, exp, false)) then
+        print("FAILS: columns one up of [dag.new_table.cust_ssn]. Expected"
                 ..vim.inspect(exp)..", got "..vim.inspect(res))
         fails = fails + 1
     end

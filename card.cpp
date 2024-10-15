@@ -471,11 +471,6 @@ std::list<TSNode> columns_one_up_of_column(card_runtime * r, TSNode parent_ref, 
     // kind of convention to pass the parent node + the string name of the column, but realizing now it
     // is clunky cuz I need 8 lines to refind the node of the column and we probably already had it
     // and parent_ref is easy to get to with parent_context(...)
-    TSQuery COMBINED_Q;
-    if(parent_ref == 482)
-        COMBINED_Q = r->FIELD_DEF_Q;
-    else if(parent_ref == 577)
-        COMBINED_Q = r->COLUMN_DEF_Q
 
     TSQueryMatch cur_match;
     // every time the FIELD_DEF_Q is run it needs to run with the max_start_depth set. This was the issue
@@ -483,7 +478,7 @@ std::list<TSNode> columns_one_up_of_column(card_runtime * r, TSNode parent_ref, 
     // the correct definition of num_leads in dag.new_table
     TSQueryCursor * clean_curse = ts_query_cursor_new();
     ts_query_cursor_set_max_start_depth(clean_curse, 4);
-    ts_query_cursor_exec(clean_curse, COMBINED_Q, ddl_node_for_name_node(r, parent_ref));
+    ts_query_cursor_exec(clean_curse, r->FIELD_DEF_Q, ddl_node_for_name_node(r, parent_ref));
     int col_found = 0;
     TSNode col_def;
     while(ts_query_cursor_next_match(clean_curse, &cur_match)) {
@@ -522,14 +517,14 @@ std::list<TSNode> columns_one_up_of_column(card_runtime * r, TSNode parent_ref, 
     for(TSNode refed_col: refs_from_col_def) {
         for(TSNode c: contexts_to_search) {
             //fprintf(stderr, "%i child nodes in the parent node: %s\n"
-            //        ,ts_node_child_count(ts_node_parent(ts_node_parent(refed_col)))
-            //        ,node_to_string(r->source, ts_node_parent(ts_node_parent(refed_col))));
+            //        ,ts_node_child_count(ts_node_parent(refed_col))
+            //        ,node_to_string(r->source, ts_node_parent(refed_col)));
             // handle object_reference field match to table or alias
             if(ts_node_child_count(ts_node_parent(refed_col)) == 3) {
                 // INVARIANT: the alias node will ALWAYS be the last node in an `relation` node
                 TSNode parent = ts_node_parent(c);
                 int alias_index = ts_node_child_count(parent) - 1;
-                if(alias_index)
+                if(alias_index) {
                     //fprintf(stderr, "comparing column source %s to context alias %s\n"
                     //              ,node_to_string(r->source, ts_node_prev_sibling(ts_node_prev_sibling(refed_col)))
                     //              ,node_to_string(r->source, ts_node_child(parent, alias_index)));
@@ -538,12 +533,20 @@ std::list<TSNode> columns_one_up_of_column(card_runtime * r, TSNode parent_ref, 
                               ,r->source + ts_node_start_byte(ts_node_child(parent, alias_index))
                               ,ts_node_end_byte(ts_node_child(parent, alias_index)) - ts_node_start_byte(ts_node_child(parent, alias_index))))
                         continue;
+                }
             }
+
+            TSQuery * COMBINED_Q = r->FIELD_DEF_Q;
             TSNode cd = context_definition(r, parent_ref, node_to_string(r->source, c));
             if(ts_node_symbol(cd) == PROGRAM_NODE)
                 continue;
-            //fprintf(stderr, "searching context %s, %s\n", node_to_string(r->source, c)
-            //            ,ts_language_symbol_name(r->language, ts_node_symbol(ddl_node_for_name_node(r, cd))));
+            TSNode searching_ddl = ddl_node_for_name_node(r, cd);
+            //fprintf(stderr, "searching context %s, %i, %s\n", node_to_string(r->source, c), ts_node_symbol(searching_ddl)
+            //            ,ts_language_symbol_name(r->language, ts_node_symbol(searching_ddl)));
+            if(ts_node_symbol(searching_ddl) != SUBQUERY_NODE && ts_node_symbol(ts_node_next_sibling(cd)) == 577) {
+                //fprintf(stderr, "using column definiton query\n");
+                COMBINED_Q = r->COLUMN_DEF_Q;
+            }
             ts_query_cursor_exec(clean_curse, COMBINED_Q, ddl_node_for_name_node(r, cd));
             while(ts_query_cursor_next_match(clean_curse, &cur_match)) {
                 int fnn = cur_match.capture_count - 1;
