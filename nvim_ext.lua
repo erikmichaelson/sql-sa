@@ -72,6 +72,7 @@ ffi.cdef[[
     cd_nodelist context_ddl_c(const char * code, TSPoint clicked);
     cd_nodelist context_definition_c(const char * code, TSPoint clicked, const char * context_name);
     cd_nodelist field_definitions_in_context_c(const char * code, const char * context_name, int cursor_row, int cursor_column);
+    cd_nodelist column_definition_c(const char * code, int cursor_row, int cursor_column);
 ]]
 
 -- hopefully it can figure out card = card.so, not cardlib.so
@@ -284,7 +285,7 @@ function print_card_columns_in_table(table_name)
     end
 end
 
-function card_jump_to_definition()
+function card_jump_to_context_definition()
     local context_name = vim.fn.input('')
     local source = api.nvim_buf_get_lines(0, 0, -1, true)
     local point = ffi.new('TSPoint[1]')
@@ -296,6 +297,21 @@ function card_jump_to_definition()
     def = card.context_definition_c(source, point[0], context_name)
     if def.points[0] == 1 then
         print('No context named '..context_name..' found')
+    end
+    vim.cmd('call cursor('..(def.points[0] + 1)..','..(def.points[1] + 1)..')')
+end
+
+function card_jump_to_column_definition()
+    local source = api.nvim_buf_get_lines(0, 0, -1, true)
+    local row    = tonumber(api.nvim_win_get_cursor(0)[1] - 1)
+    local column = tonumber(api.nvim_win_get_cursor(0)[2])
+    source = table.concat(source, "\n")
+    local def = ffi.new("cd_nodelist[1]")
+    print()
+    def = card.column_definition_c(source, row, column)
+    if def.size == 0 then
+        print('No column named found')
+        return
     end
     vim.cmd('call cursor('..(def.points[0] + 1)..','..(def.points[1] + 1)..')')
 end
@@ -327,7 +343,8 @@ vim.keymap.set('n', '<Leader>h'
     ,':lua highlight_card_references_from_context(card_get_parent_context(), vim.fn.getpos("\'<")[2], vim.fn.getpos("\'<")[1])<CR>')
 vim.keymap.set('n', '<Leader>p',':lua highlight_card_parent_context()<CR>')
 vim.keymap.set('n', '<Leader>D',':lua highlight_card_context_ddl()<CR>')
-vim.keymap.set('n', '<Leader>/',':lua card_jump_to_definition();<CR>')
+vim.keymap.set('n', '<Leader>/',':lua card_jump_to_context_definition();<CR>')
+vim.keymap.set('n', '<Leader>^',':lua card_jump_to_column_definition();<CR>')
 vim.keymap.set('n', '<Leader>r', ':lua card_reset()<CR>')
 
 -- query shortcuts

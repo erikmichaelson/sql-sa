@@ -449,6 +449,66 @@ std::list<TSNode> contexts_downstream_of_context(card_runtime * r, TSNode parent
     return reflist;
 }
 
+/*
+ * awkward thing about this function is it's way more clean to do for single columns:
+ * e.g. `column_definition('')`
+ * but in the case where you're looking for multiple columns that you know are going to
+ * be coming from the same places (most of the time, since that's how references in SQL work)
+ * then it seems a lot more efficient to check a list of columns on every context
+ * the other problem is that then when you return you have to disambiguate between definitions (kinda)
+ * I think I'm doing it on a per column basis and figure out the bindings later
+ */
+TSNode column_definition(card_runtime * r, TSNode parent_ref, TSNode column_ref) {
+    TSNode ret = ts_tree_root_node(r->tree);
+    if(ts_node_symbol(column_ref) != OBJ_REF_NODE && ts_node_symbol(column_ref) != IDENTIFIER_NODE) {
+        printf("ERROR: column definition called on not an object reference node\n");
+        return ret;
+    }
+
+    TSQueryMatch cur_match;
+    TSQueryCursor * clean_curse = ts_query_cursor_new();
+    ts_query_cursor_set_max_start_depth(clean_curse, 4);
+    std::list<TSNode> contexts_to_search = references_from_context(r, parent_ref, node_to_string(r->source, parent_ref));
+
+    for(TSNode c: contexts_to_search) {
+        // handle object_reference field match to table or alias
+        if(ts_node_child_count(ts_node_parent(column_ref)) == 3) {
+            // INVARIANT: the alias node will ALWAYS be the last node in an `relation` node
+            TSNode parent = ts_node_parent(c);
+            int alias_index = ts_node_child_count(parent) - 1;
+            if(alias_index) {
+                // the below is true IFF the alias of the last table is NOT the same string as the this contexts' alias
+                if(strncmp(node_to_string(r->source, ts_node_prev_sibling(ts_node_prev_sibling(column_ref)))
+                          ,r->source + ts_node_start_byte(ts_node_child(parent, alias_index))
+                          ,ts_node_end_byte(ts_node_child(parent, alias_index)) - ts_node_start_byte(ts_node_child(parent, alias_index))))
+                    continue;
+            }
+        }
+
+        TSQuery * COMBINED_Q = r->FIELD_DEF_Q;
+        TSNode cd = context_definition(r, parent_ref, node_to_string(r->source, c));
+        if(ts_node_symbol(cd) == PROGRAM_NODE)
+            break;
+        TSNode searching_ddl = ddl_node_for_name_node(r, cd);
+        if(ts_node_symbol(searching_ddl) != SUBQUERY_NODE && ts_node_symbol(ts_node_next_sibling(cd)) == 577)
+            COMBINED_Q = r->COLUMN_DEF_Q;
+
+        ts_query_cursor_exec(clean_curse, COMBINED_Q, ddl_node_for_name_node(r, cd));
+        while(ts_query_cursor_next_match(clean_curse, &cur_match)) {
+            int fnn = cur_match.capture_count - 1;
+            if(!strncmp(node_to_string(r->source, column_ref)
+                        ,r->source + ts_node_start_byte(cur_match.captures[fnn].node)
+                        ,ts_node_end_byte(column_ref) - ts_node_start_byte(column_ref))) {
+                ret = cur_match.captures[fnn].node;
+                break;
+            }
+        }
+    }
+
+    ts_query_cursor_delete(clean_curse);
+    return ret;
+}
+
 /* this assumes that column_name is unique in the context.
    This is a safe assumption in postgres I believe... maybe not everywhere
    
@@ -583,7 +643,7 @@ std::list<TSNode> columns_one_down_of_column(card_runtime * r, TSNode parent_ref
         while(ts_query_cursor_next_match(r->cursor, &cur_match)) {
             if(!strncmp(column_name
                         ,r->source + ts_node_start_byte(cur_match.captures[0].node)
-                        ,(ts_node_end_byte(cur_match.captures[0].node) - ts_node_start_byte(cur_match.captures[0].node))))
+                        ,strlen(column_name)))
                 reflist.push_front(cur_match.captures[0].node);
         }
     }
@@ -771,6 +831,38 @@ extern "C" {
             i++;
         }
         ret.size = i;
+
+        card_runtime_deinit(r);
+        return ret;
+    }
+
+    // experimenting on taking "name" out of the API and just working with the cursor's point
+    cd_nodelist column_definition_c(const char * code, int cursor_row, int cursor_column) {
+        cd_nodelist ret;
+        card_runtime * r = card_runtime_init(code);
+
+        TSPoint cursor_point;
+        cursor_point.row = cursor_row;
+        cursor_point.column = cursor_column;
+        TSNode parent_ref = parent_context(r->tree, cursor_point);
+        if(ts_node_symbol(parent_ref) == PROGRAM_NODE) {
+            ret.size = 0;
+            return ret;
+        }
+        TSNode column_node = ts_node_descendant_for_point_range(ts_tree_root_node(r->tree), cursor_point, cursor_point);
+
+        TSNode res = column_definition(r, parent_ref, column_node);
+        if(ts_node_symbol(res) == PROGRAM_NODE) {
+            card_runtime_deinit(r);
+            ret.size = 0;
+            return ret;
+        }
+        ret.points = (int *)malloc(sizeof(int) * 4);
+        ret.points[0] = ts_node_start_point(res).row;
+        ret.points[1] = ts_node_start_point(res).column;
+        ret.points[2] =   ts_node_end_point(res).row;
+        ret.points[3] =   ts_node_end_point(res).column;
+        ret.size = 1;
 
         card_runtime_deinit(r);
         return ret;

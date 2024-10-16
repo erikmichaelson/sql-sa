@@ -420,6 +420,21 @@ function test_card_columns_one_up_of()
         fails = fails + 1
     end
 
+    -------- JUMP TO DEFINITION --------
+    -- make sure this doesn't match the substring of "c" to "c|ust_nm" in etl.leads
+    vim.api.nvim_buf_call(cll_buf,
+            function()
+                vim.cmd(":call cursor(92,12)")
+                card_jump_to_column_definition()
+            end)
+    res = vim.api.nvim_win_get_cursor(cll_buf)
+    exp = { { 1, 78, 89 } }
+    if(not tbl_equals(res, exp, false)) then
+        print("FAILS: jump to column definition at 92,12 of [dag.new_table.cust_ssn]. Expected"
+                ..vim.inspect(exp)..", got "..vim.inspect(res))
+        fails = fails + 1
+    end
+
     --vim.cmd(":view test/dag_test.sql")
     vim.api.nvim_buf_call(dag_buf,
             function()
