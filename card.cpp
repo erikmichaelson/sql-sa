@@ -280,15 +280,19 @@ TSNode context_ddl(card_runtime * r, TSPoint p, const char * context_name) {
     return ret;
 }
 
-std::list<TSNode> field_definitions_in_context(card_runtime * r, TSNode parent_ref, const char * context_name) {
+// used to be a standalone function taking a context name - converting to utility function
+std::list<TSNode> field_definitions_in_context(card_runtime * r, TSNode context_name_ref) {
     std::list<TSNode> field_list;
-    TSNode node = context_definition(r, parent_ref, context_name);
-    if(ts_node_symbol(node) == PROGRAM_NODE)
-        return field_list;
+    TSQuery * selection_q = r->FIELD_DEF_Q;
+    if(ts_node_symbol(context_name_ref) == OBJ_REF_NODE)
+        if(ts_node_child_count(ts_node_parent(context_name_ref)) > 1)
+            if(ts_node_symbol(ts_node_next_sibling(context_name_ref)) == 577)
+                selection_q = r->COLUMN_DEF_Q;
+
     TSQueryMatch cur_match;
     TSQueryCursor * clean_curse = ts_query_cursor_new();
     ts_query_cursor_set_max_start_depth(clean_curse, 4);
-    ts_query_cursor_exec(clean_curse, r->FIELD_DEF_Q, ddl_node_for_name_node(r, node));
+    ts_query_cursor_exec(clean_curse, selection_q, ddl_node_for_name_node(r, context_name_ref));
     while(ts_query_cursor_next_match(clean_curse, &cur_match)) {
         // aliased column. Discard for now
         if(cur_match.capture_count == 2)
@@ -303,39 +307,20 @@ std::list<TSNode> field_definitions_in_context(card_runtime * r, TSNode parent_r
 std::list<TSNode> expand_select_star(card_runtime * r, TSNode star_node);
 
 // takes a TSNode at a "create_table" node, returns a list of column names
-std::list<TSNode> result_columns_for_ddl(card_runtime * r, TSNode ddl) {
+std::list<TSNode> result_columns_for_ddl(card_runtime * r, TSNode parent_ref) {
     std::list<TSNode> ret;
-    TSQuery * selection_q;
-    TSNode ddl_body = ddl;
-    int i = 0;
-    while(i < ts_node_child_count(ts_node_parent(ddl))) {
-        //fprintf(stderr, "ts_node_symbol: %s (id: %i)\n", ts_language_symbol_name(tree_sitter_sql(), ts_node_symbol(ddl_body)), ts_node_symbol(ddl_body));
-        if(ts_node_symbol(ddl_body) == 482) {
-            selection_q = r->FIELD_DEF_Q;
-            break;
-        }
-        // handle the case that this is a straight up list of columns not create_query
-        else if(ts_node_symbol(ddl_body) == 577) {
-            selection_q = r->COLUMN_DEF_Q;
-            break;
-        }
-        ddl_body = ts_node_next_sibling(ddl_body);
-        i++;
-    }
-    if(i == ts_node_child_count(ts_node_parent(ddl))) {
-        printf("ERROR: ddl node doesn't have a create_query or column_definitions child node\n");
-        return ret;
-    }
+    std::list<TSNode> to_search = field_definitions_in_context(r, parent_ref);
     //fprintf(stderr, "looking for columns in this tree:\n%s\n", ts_node_string(ts_node_parent(ddl)));
-    ts_query_cursor_exec(r->cursor, selection_q, ts_node_parent(ddl));
+    ts_query_cursor_exec(r->cursor, r->FIELD_DEF_Q, ddl_node_for_name_node(r, parent_ref));
     TSQueryMatch cur_match;
-    while(ts_query_cursor_next_match(r->cursor, &cur_match)) {
+    for(TSNode cd: to_search) {
         //fprintf(stderr, "cursor iterating");
         //fprintf(stderr, "ts_node_symbol: %s (id: %i)\n", ts_language_symbol_name(tree_sitter_sql(), ts_node_symbol(cur_match.captures[0].node)), ts_node_symbol(cur_match.captures[0].node));
         if(ts_node_symbol(cur_match.captures[0].node) == 590)
             ret.merge(expand_select_star(r, cur_match.captures[0].node), node_compare);
-        else
-            ret.push_front(cur_match.captures[0].node);
+        else {
+            ret.push_front(cd);
+        }
     }
     //fprintf(stderr, "done iterating\n");
     return ret;
@@ -457,11 +442,15 @@ std::list<TSNode> contexts_downstream_of_context(card_runtime * r, TSNode parent
  * then it seems a lot more efficient to check a list of columns on every context
  * the other problem is that then when you return you have to disambiguate between definitions (kinda)
  * I think I'm doing it on a per column basis and figure out the bindings later
+ * 
+ * RETURNS: on success - a list with a single node
+ *          if there's no definition in the searched text, an empty list
+ *          all possible definitions if the column reference is ambiguous. Clients have to handle this
  */
-TSNode column_definition(card_runtime * r, TSNode parent_ref, TSNode column_ref) {
-    TSNode ret = ts_tree_root_node(r->tree);
+std::list<TSNode> column_definition(card_runtime * r, TSNode parent_ref, TSNode column_ref) {
+    std::list<TSNode> ret;
     if(ts_node_symbol(column_ref) != OBJ_REF_NODE && ts_node_symbol(column_ref) != IDENTIFIER_NODE) {
-        printf("ERROR: column definition called on not an object reference node\n");
+        printf("ERROR: column definition called on not an object reference or identifier node\n");
         return ret;
     }
 
@@ -485,22 +474,23 @@ TSNode column_definition(card_runtime * r, TSNode parent_ref, TSNode column_ref)
             }
         }
 
-        TSQuery * COMBINED_Q = r->FIELD_DEF_Q;
         TSNode cd = context_definition(r, parent_ref, node_to_string(r->source, c));
+        // changed from break to continue but we should flag for the user that this column *might* be defined in the
+        // context that is referenced but we can't find the definition for
         if(ts_node_symbol(cd) == PROGRAM_NODE)
-            break;
+            continue;
+        TSQuery * COMBINED_Q = r->FIELD_DEF_Q;
         TSNode searching_ddl = ddl_node_for_name_node(r, cd);
         if(ts_node_symbol(searching_ddl) != SUBQUERY_NODE && ts_node_symbol(ts_node_next_sibling(cd)) == 577)
             COMBINED_Q = r->COLUMN_DEF_Q;
 
-        ts_query_cursor_exec(clean_curse, COMBINED_Q, ddl_node_for_name_node(r, cd));
+        ts_query_cursor_exec(clean_curse, COMBINED_Q, searching_ddl);
         while(ts_query_cursor_next_match(clean_curse, &cur_match)) {
             int fnn = cur_match.capture_count - 1;
             if(!strncmp(node_to_string(r->source, column_ref)
                         ,r->source + ts_node_start_byte(cur_match.captures[fnn].node)
                         ,ts_node_end_byte(column_ref) - ts_node_start_byte(column_ref))) {
-                ret = cur_match.captures[fnn].node;
-                break;
+                ret.push_front(cur_match.captures[fnn].node);
             }
         }
     }
@@ -570,11 +560,11 @@ std::list<TSNode> columns_one_up_of_column(card_runtime * r, TSNode parent_ref, 
     }
 
     // holy crap having a slightly fleshed out set of functions is game changing
-    // TODO: cull some parent nodes to search by looking at the aliases before cols
     //fprintf(stderr, "%lu references from the column definition of %s\n", refs_from_col_def.size(), column_name);
     std::list<TSNode> contexts_to_search = references_from_context(r, parent_ref, node_to_string(r->source, parent_ref));
     //fprintf(stderr, "%lu contexts to search from the context %s\n", contexts_to_search.size(), node_to_string(r->source, parent_ref));
     for(TSNode refed_col: refs_from_col_def) {
+        int reflist_size = reflist.size();
         for(TSNode c: contexts_to_search) {
             //fprintf(stderr, "%i child nodes in the parent node: %s\n"
             //        ,ts_node_child_count(ts_node_parent(refed_col))
@@ -616,12 +606,14 @@ std::list<TSNode> columns_one_up_of_column(card_runtime * r, TSNode parent_ref, 
                 if(!strncmp(node_to_string(r->source, refed_col)
                             ,r->source + ts_node_start_byte(cur_match.captures[fnn].node)
                             ,ts_node_end_byte(refed_col) - ts_node_start_byte(refed_col))) {
-                    refs_from_col_def.remove_if( [](const TSNode n) { return ts_node_start_byte(n) > ts_node_start_byte(n); } );
+                    //refs_from_col_def.remove_if( [](const TSNode n) { return ts_node_start_byte(n) > ts_node_start_byte(n); } );
                     reflist.push_front(cur_match.captures[fnn].node);
-                    break;
+                    //break;
                 }
             }
         }
+        if(reflist.size() > (1 + reflist_size))
+            printf("ERROR: more than one definition found for %s. Alias to one of these\n", node_to_string(r->source, refed_col));
     }
     ts_query_cursor_delete(clean_curse);
     return reflist;
@@ -699,9 +691,15 @@ extern "C" {
         int     size;
     } cd_stringlist;
 
-    cd_nodelist references_from_context_c(const char * code, const char * context_name, int cursor_row, int cursor_column) {
+    card_runtime * card_runtime_init_c(const char * source) {
+        return card_runtime_init(source);
+    }
+    void card_runtime_deinit_c(card_runtime * r) {
+        card_runtime_deinit(r);
+    };
+
+    cd_nodelist references_from_context_c(card_runtime * r, const char * context_name, int cursor_row, int cursor_column) {
         cd_nodelist ret;
-        card_runtime * r = card_runtime_init(code);
 
         // TODO: get fancy syntax to work... TSPoint cursor_point = (TSPoint) { .row = cursor_row, .column = cursor_column };
         TSPoint cursor_point;
@@ -721,13 +719,11 @@ extern "C" {
         }
         ret.size = i;
 
-        card_runtime_deinit(r);
         return ret;
     }
 
-    cd_nodelist references_to_context_c(const char * code, const char * context_name, int cursor_row, int cursor_column) {
+    cd_nodelist references_to_context_c(card_runtime * r, const char * context_name, int cursor_row, int cursor_column) {
         cd_nodelist ret;
-        card_runtime * r = card_runtime_init(code);
 
         TSPoint cursor_point;
         cursor_point.row = cursor_row;
@@ -746,13 +742,11 @@ extern "C" {
         }
         ret.size = i;
 
-        card_runtime_deinit(r);
         return ret;
     }
 
-    cd_nodelist contexts_downstream_of_context_c(const char * code, const char * context_name, int cursor_row, int cursor_column) {
+    cd_nodelist contexts_downstream_of_context_c(card_runtime * r, const char * context_name, int cursor_row, int cursor_column) {
         cd_nodelist ret;
-        card_runtime * r = card_runtime_init(code);
         TSPoint cursor_point;
         cursor_point.row = cursor_row;
         cursor_point.column = cursor_column;
@@ -774,13 +768,11 @@ extern "C" {
         }
         ret.size = i;
 
-        card_runtime_deinit(r);
         return ret;
     }
 
-    cd_nodelist contexts_upstream_of_context_c(const char * code, const char * context_name, int cursor_row, int cursor_column) {
+    cd_nodelist contexts_upstream_of_context_c(card_runtime * r, const char * context_name, int cursor_row, int cursor_column) {
         cd_nodelist ret;
-        card_runtime * r = card_runtime_init(code);
 
         TSPoint cursor_point;
         cursor_point.row = cursor_row;
@@ -803,13 +795,11 @@ extern "C" {
         }
         ret.size = i;
 
-        card_runtime_deinit(r);
         return ret;
     }
 
-    cd_nodelist columns_one_up_of_column_c(const char * code, const char * column_name, int cursor_row, int cursor_column) {
+    cd_nodelist columns_one_up_of_column_c(card_runtime * r, const char * column_name, int cursor_row, int cursor_column) {
         cd_nodelist ret;
-        card_runtime * r = card_runtime_init(code);
 
         TSPoint cursor_point;
         cursor_point.row = cursor_row;
@@ -832,14 +822,12 @@ extern "C" {
         }
         ret.size = i;
 
-        card_runtime_deinit(r);
         return ret;
     }
 
     // experimenting on taking "name" out of the API and just working with the cursor's point
-    cd_nodelist column_definition_c(const char * code, int cursor_row, int cursor_column) {
+    cd_nodelist column_definition_c(card_runtime * r, int cursor_row, int cursor_column) {
         cd_nodelist ret;
-        card_runtime * r = card_runtime_init(code);
 
         TSPoint cursor_point;
         cursor_point.row = cursor_row;
@@ -851,26 +839,23 @@ extern "C" {
         }
         TSNode column_node = ts_node_descendant_for_point_range(ts_tree_root_node(r->tree), cursor_point, cursor_point);
 
-        TSNode res = column_definition(r, parent_ref, column_node);
-        if(ts_node_symbol(res) == PROGRAM_NODE) {
-            card_runtime_deinit(r);
-            ret.size = 0;
-            return ret;
+        std::list<TSNode> res = column_definition(r, parent_ref, column_node);
+        ret.points = (int *)malloc(sizeof(int) * 4 * res.size());
+        int i = 0;
+        for(TSNode n: res) {
+            ret.points[(i * 4) + 0] = ts_node_start_point(n).row;
+            ret.points[(i * 4) + 1] = ts_node_start_point(n).column;
+            ret.points[(i * 4) + 2] =   ts_node_end_point(n).row;
+            ret.points[(i * 4) + 3] =   ts_node_end_point(n).column;
+            i++;
         }
-        ret.points = (int *)malloc(sizeof(int) * 4);
-        ret.points[0] = ts_node_start_point(res).row;
-        ret.points[1] = ts_node_start_point(res).column;
-        ret.points[2] =   ts_node_end_point(res).row;
-        ret.points[3] =   ts_node_end_point(res).column;
-        ret.size = 1;
+        ret.size = i;
 
-        card_runtime_deinit(r);
         return ret;
     }
 
-    cd_nodelist columns_one_down_of_column_c(const char * code, const char * column_name, int cursor_row, int cursor_column) {
+    cd_nodelist columns_one_down_of_column_c(card_runtime * r, const char * column_name, int cursor_row, int cursor_column) {
         cd_nodelist ret;
-        card_runtime * r = card_runtime_init(code);
 
         TSPoint cursor_point;
         cursor_point.row = cursor_row;
@@ -893,13 +878,11 @@ extern "C" {
         }
         ret.size = i;
 
-        card_runtime_deinit(r);
         return ret;
     }
 
-    cd_stringlist result_columns_for_table_c(const char * code, const char * table) {
+    cd_stringlist result_columns_for_table_c(card_runtime * r, const char * table) {
         cd_stringlist ret;
-        card_runtime * r = card_runtime_init(code);
 
         TSNode ddl = context_definition(r, ts_tree_root_node(r->tree), table);
 
@@ -908,18 +891,16 @@ extern "C" {
         int i = 0;
         for(TSNode n: res) {
             ret.fields[i] = (char *)malloc(ts_node_end_byte(n) - ts_node_start_byte(n));
-            strcpy(ret.fields[i], node_to_string(code, n));
+            strcpy(ret.fields[i], node_to_string(r->source, n));
             i++;
         }
         ret.size = i;
-        card_runtime_deinit(r);
         return ret;
     }
 
     // do the dumb recalc the tree thing again
-    cd_nodelist parent_context_c(const char * code, TSPoint clicked) {
+    cd_nodelist parent_context_c(card_runtime * r, TSPoint clicked) {
         cd_nodelist ret;
-        card_runtime * r = card_runtime_init(code);
 
         TSNode n = parent_context(r->tree, clicked);
         ret.points = (int *)malloc(sizeof(int) * 4);
@@ -929,16 +910,14 @@ extern "C" {
         ret.points[3] =   ts_node_end_point(n).column;
         ret.size = 1;
 
-        card_runtime_deinit(r);
         return ret;
     }
 
-    cd_nodelist context_ddl_c(const char * code, TSPoint clicked) {
+    cd_nodelist context_ddl_c(card_runtime * r, TSPoint clicked) {
         cd_nodelist ret;
-        card_runtime * r = card_runtime_init(code);
         // SOOOOOOO wasteful. Linus would cry
         TSNode parent_ref = parent_context(r->tree, clicked);
-        const char * context_name = node_to_string(code, parent_ref);
+        const char * context_name = node_to_string(r->source, parent_ref);
 
         TSNode n = context_ddl(r, clicked, context_name);
         ret.points = (int *) malloc(sizeof(int) * 4);
@@ -948,13 +927,11 @@ extern "C" {
         ret.points[3] =   ts_node_end_point(n).column;
         ret.size = 1;
 
-        card_runtime_deinit(r);
         return ret;
     }
 
-    cd_nodelist context_definition_c(const char * code, TSPoint clicked, const char * context_name) {
+    cd_nodelist context_definition_c(card_runtime * r, TSPoint clicked, const char * context_name) {
         cd_nodelist ret;
-        card_runtime * r = card_runtime_init(code);
         TSNode parent_ref = parent_context(r->tree, clicked);
         
         TSNode n = context_definition(r, parent_ref, context_name);
@@ -965,13 +942,11 @@ extern "C" {
         ret.points[3] =   ts_node_end_point(n).column;
         ret.size = 1;
 
-        card_runtime_deinit(r);
         return ret;
     }
 
-    cd_nodelist field_definitions_in_context_c(const char * code, const char * context_name, int cursor_row, int cursor_column) {
+    cd_nodelist field_definitions_in_context_c(card_runtime * r, const char * context_name, int cursor_row, int cursor_column) {
         cd_nodelist ret;
-        card_runtime * r = card_runtime_init(code);
         TSPoint cursor_point;
         cursor_point.row = cursor_row;
         cursor_point.column = cursor_column;
@@ -981,7 +956,8 @@ extern "C" {
             return ret;
         }
 
-        std::list<TSNode> res = field_definitions_in_context(r, parent_ref, context_name);
+        TSNode c = context_definition(r, parent_ref, context_name);
+        std::list<TSNode> res = field_definitions_in_context(r, c);
         ret.points = (int *)malloc(sizeof(int) * 4 * res.size());
         int i = 0;
         for(TSNode n: res) {
@@ -993,7 +969,10 @@ extern "C" {
         }
         ret.size = i;
 
-        card_runtime_deinit(r);
         return ret;
+    }
+
+    const char * node_to_string_c(const char * source, const TSNode n) {
+        return node_to_string(source, n);
     }
 }

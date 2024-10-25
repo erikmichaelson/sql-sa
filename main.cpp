@@ -107,11 +107,11 @@ void serialize_queries() {
 
 void usage() {
     printf("\
-card  [serialize]\
-      [usage]\
-                  [$SQL_FILE_PATH] [--show] [references] [--to|--from] [$CONTEXT_NAME]\
-                                            [upstream]   [--of]        [$CONTEXT_NAME]\
-                                            [fields]     [--in]        [$CONTEXT_NAME]");
+card  [serialize]\n\
+      [usage]\n\
+                  [$SQL_FILE_PATH] [--show] [references] [--to|--from] [$ROW],[$COL] [$CONTEXT_NAME]\n\
+                                            [upstream]   [--of]        [$ROW],[$COL] [$CONTEXT_NAME]\n\
+                                            [fields]     [--in]        [$ROW],[$COL] [$CONTEXT_NAME]");
     return;
 }
 
@@ -218,7 +218,7 @@ int main(int argc, char ** argv) {
     if(argc > 2) {
         // show either DDL or references for a table
         if(argc < 4 || strcmp(argv[2], "--show")) {
-            printf("used wrong"); // had a \n. REMOVED IT (yeah yeah)
+            usage(); // had a \n. REMOVED IT (yeah yeah)
             exit(1);
         }
 
@@ -227,7 +227,7 @@ int main(int argc, char ** argv) {
             printf("DDL not implemented");
             exit(1);
         } else if (!strcmp(argv[3], "references")) {
-            if(argc != 7) { printf("used wrong"); exit(1); }
+            if(argc != 7) { usage(); exit(1); }
             TSPoint p;
             char * str = argv[5];
             p.row = std::stoi(strtok(str, ","));
@@ -259,7 +259,7 @@ int main(int argc, char ** argv) {
                 free(from_highlights.ncms);
             }
         } else if (!strcmp(argv[3], "downstream")) {
-            if (argc != 7) { printf("used wrong"); exit(1); }
+            if (argc != 7) { usage(); exit(1); }
             if (!strcmp(argv[4], "--of")) {
                 TSPoint p;
                 char * str = argv[5];
@@ -273,10 +273,10 @@ int main(int argc, char ** argv) {
                 printf("%s\n", format_term_highlights(all_sqls, downstream_highlights).c_str());
                 free(downstream_highlights.ncms);
             } else {
-                printf("used wrong"); exit(1);
+                usage(); exit(1);
             }
         } else if (!strcmp(argv[3], "upstream")) {
-            if (argc != 7) { printf("used wrong"); exit(1); }
+            if (argc != 7) { usage(); exit(1); }
             TSPoint p;
             char * str = argv[5];
             p.row = std::stoi(strtok(str, ","));
@@ -292,10 +292,10 @@ int main(int argc, char ** argv) {
                 printf("%s\n", format_term_highlights(all_sqls, upstream_highlights).c_str());
                 free(upstream_highlights.ncms);
             } else {
-                printf("used wrong"); exit(1);
+                usage(); exit(1);
             }
         } else if (!strcmp(argv[3], "fields")) {
-            if (argc != 6) { printf("used wrong"); exit(1); }
+            if (argc != 6) { usage(); exit(1); }
             if (!strcmp(argv[4], "--in")) {
                 // this is completely copied... code to get DDL node for a table give table name string. Should be a function
                 TSNode ddl_node = context_definition(r, ts_tree_root_node(r->tree), argv[5]);
@@ -310,11 +310,11 @@ int main(int argc, char ** argv) {
                 for(TSNode c : cols)
                     printf("%s\n", node_to_string(all_sqls.c_str(), c));
             } else {
-                printf("used wrong");
+                usage();
                 exit(1);
             }
         } else if (!strcmp(argv[3], "parentcontext")) {
-            if (argc != 6) { printf("used wrong"); exit(1); }
+            if (argc != 6) { usage(); exit(1); }
             if (!strcmp(argv[4], "--at")) {
                 TSPoint p;
                 char * str = argv[5];
@@ -334,7 +334,7 @@ int main(int argc, char ** argv) {
                 printf("\n%s\n", format_term_highlights(all_sqls, ncm).c_str());
             }
         } else if (!strcmp(argv[3], "contextddl")) {
-            if (argc != 6) { printf("used wrong"); exit(1); }
+            if (argc != 6) { usage(); exit(1); }
             if (!strcmp(argv[4], "--at")) {
                 TSPoint p;
                 char * str = argv[5];
@@ -353,7 +353,7 @@ int main(int argc, char ** argv) {
                 printf("\n%s\n", format_term_highlights(all_sqls, ncm).c_str());
             }
         } else if (!strcmp(argv[3], "oneup")) {
-            if (argc != 7) { printf("used wrong"); exit(1); }
+            if (argc != 7) { usage(); exit(1); }
             if (!strcmp(argv[4], "--of")) {
                 TSPoint p;
                 char * str = argv[6];

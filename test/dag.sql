@@ -58,7 +58,7 @@ create table dag.two_deep as (
 );
 
 create table dag.completely_unrelated as (
-    select lead_id, min(updated), max(updated) from etl.snapshot group by lead_id 
+    select lead_id, min(updated), max(updated) from etl.snapshot group by lead_id
 );
 
 create table dag.three_deep as (

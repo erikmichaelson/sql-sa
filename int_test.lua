@@ -427,10 +427,39 @@ function test_card_columns_one_up_of()
                 vim.cmd(":call cursor(92,12)")
                 card_jump_to_column_definition()
             end)
-    res = vim.api.nvim_win_get_cursor(cll_buf)
+    res = vim.api.nvim_win_get_cursor(0)
     exp = { { 1, 78, 89 } }
     if(not tbl_equals(res, exp, false)) then
         print("FAILS: jump to column definition at 92,12 of [dag.new_table.cust_ssn]. Expected"
+                ..vim.inspect(exp)..", got "..vim.inspect(res))
+        fails = fails + 1
+    end
+
+    -- Needs to error / return root_node.
+    vim.api.nvim_buf_call(cll_buf,
+            function()
+                vim.cmd(":call cursor(109,39)")
+                card_jump_to_column_definition()
+            end)
+    res = vim.api.nvim_win_get_cursor(0)
+    exp = { { 0, 0, 1 } }
+    if(not tbl_equals(res, exp, false)) then
+        print("FAILS: jump to column definition at 109,39 of [take_your_pick.agent]. Expected"
+                ..vim.inspect(exp)..", got "..vim.inspect(res))
+        fails = fails + 1
+    end
+
+    -- this diverged from one up of behavior... whoops. Not good. Needs to error
+    -- Make sure the source code here has cust_ssn unaliased and defined in 2 places
+    vim.api.nvim_buf_call(cll_buf,
+            function()
+                vim.cmd(":call cursor(92,10)")
+                card_jump_to_column_definition()
+            end)
+    res = vim.api.nvim_win_get_cursor(0)
+    exp = { { 0, 0, 1 } }
+    if(not tbl_equals(res, exp, false)) then
+        print("FAILS: jump to column definition at 93,10 of [dag.new_table.cust_ssn]. Expected"
                 ..vim.inspect(exp)..", got "..vim.inspect(res))
         fails = fails + 1
     end
