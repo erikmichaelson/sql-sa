@@ -301,17 +301,17 @@ function test_card_contexts_upstream_of()
     return fails
 end
 
-function test_card_columns_one_up_of()
+function test_card_references_from_column()
     --vim.cmd(":view test/cll_test.sql")
     -- get two basic references from a column 
     vim.api.nvim_buf_call(cll_buf,
             function()
-                highlight_card_one_up_of_column('hmda_county_code',32,57)
+                highlight_card_references_from_column('hmda_county_code',32,57)
             end)
     res = vim.api.nvim_buf_get_extmarks(cll_buf, cns, 0, -1, {})
     exp = { { 2, 13, 31 }, { 1, 23, 20 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAILS: columns one up of [combined.hmda_county_code]. Expected"
+        print("FAILS: columns referenced from [combined.hmda_county_code]. Expected"
                 ..vim.inspect(exp)..", got "..vim.inspect(res))
         fails = fails + 1
     end
@@ -319,12 +319,12 @@ function test_card_columns_one_up_of()
     -- get column where upstream definition has an alias
     vim.api.nvim_buf_call(cll_buf,
             function()
-                highlight_card_one_up_of_column('start_dt',92,65)
+                highlight_card_references_from_column('start_dt',92,65)
             end)
     res = vim.api.nvim_buf_get_extmarks(cll_buf, cns, 0, -1, {})
     exp = { { 1, 95, 30 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAILS: columns one up of [dag.new_table.tnaa.start_dt]. Expected"
+        print("FAILS: columns referenced from [dag.new_table.tnaa.start_dt]. Expected"
                 ..vim.inspect(exp)..", got "..vim.inspect(res))
         fails = fails + 1
     end
@@ -332,12 +332,12 @@ function test_card_columns_one_up_of()
     -- get column where reference has an alias
     vim.api.nvim_buf_call(cll_buf,
             function()
-                highlight_card_one_up_of_column('cust_ssn',92,14)
+                highlight_card_references_from_column('cust_ssn',92,14)
             end)
     res = vim.api.nvim_buf_get_extmarks(cll_buf, cns, 0, -1, {})
     exp = { { 1, 86, 15 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAILS: columns one up of [new_table.cust_ssn]. Expected"
+        print("FAILS: columns referenced from [new_table.cust_ssn]. Expected"
                 ..vim.inspect(exp)..", got "..vim.inspect(res))
         fails = fails + 1
     end
@@ -345,12 +345,12 @@ function test_card_columns_one_up_of()
     -- get column defined in CTE
     vim.api.nvim_buf_call(cll_buf,
             function()
-                highlight_card_one_up_of_column('num_leads',92,33)
+                highlight_card_references_from_column('num_leads',92,33)
             end)
     res = vim.api.nvim_buf_get_extmarks(cll_buf, cns, 0, -1, {})
     exp = { { 1, 86, 38 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAILS: columns one up of [dag.new_table.num_leads]. Expected"
+        print("FAILS: columns referenced from [dag.new_table.num_leads]. Expected"
                 ..vim.inspect(exp)..", got "..vim.inspect(res))
         fails = fails + 1
     end
@@ -358,12 +358,12 @@ function test_card_columns_one_up_of()
     -- get column defined in table *and* CTE (only return table)
     vim.api.nvim_buf_call(cll_buf,
             function()
-                highlight_card_one_up_of_column('num_leads',100,21)
+                highlight_card_references_from_column('num_leads',100,21)
             end)
     res = vim.api.nvim_buf_get_extmarks(cll_buf, cns, 0, -1, {})
     exp = { { 1, 91, 32 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAILS: columns one up of [dag.anonymized.num_leads]. Expected"
+        print("FAILS: columns referenced from [dag.anonymized.num_leads]. Expected"
                 ..vim.inspect(exp)..", got "..vim.inspect(res))
         fails = fails + 1
     end
@@ -371,12 +371,12 @@ function test_card_columns_one_up_of()
     -- pseudo bind column with an alias but is defined in two tables
     vim.api.nvim_buf_call(cll_buf,
             function()
-                highlight_card_one_up_of_column('last_name',107,14)
+                highlight_card_references_from_column('last_name',107,14)
             end)
     res = vim.api.nvim_buf_get_extmarks(cll_buf, cns, 0, -1, {})
     exp = { { 1, 105, 44 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAILS: columns one up of [take_your_pick.last_name]. Expected"
+        print("FAILS: columns referenced from [take_your_pick.last_name]. Expected"
                 ..vim.inspect(exp)..", got "..vim.inspect(res))
         fails = fails + 1
     end
@@ -384,12 +384,12 @@ function test_card_columns_one_up_of()
     -- pseudo bind with two tables (other column - coming from other table)
     vim.api.nvim_buf_call(cll_buf,
             function()
-                highlight_card_one_up_of_column('first_name',107,14)
+                highlight_card_references_from_column('first_name',107,14)
             end)
     res = vim.api.nvim_buf_get_extmarks(cll_buf, cns, 0, -1, {})
     exp = { { 1, 104, 32 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAILS: columns one up of [take_your_pick.first_name]. Expected"
+        print("FAILS: columns referenced from [take_your_pick.first_name]. Expected"
                 ..vim.inspect(exp)..", got "..vim.inspect(res))
         fails = fails + 1
     end
@@ -397,12 +397,12 @@ function test_card_columns_one_up_of()
     -- get column from column_definition DDL (not create_query)
     vim.api.nvim_buf_call(cll_buf,
             function()
-                highlight_card_one_up_of_column('cust_ssn',87,16)
+                highlight_card_references_from_column('cust_ssn',87,16)
             end)
     res = vim.api.nvim_buf_get_extmarks(cll_buf, cns, 0, -1, {})
     exp = { { 1, 78, 27 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAILS: columns one up of [dag.new_table > cust_level.cust_ssn]. Expected"
+        print("FAILS: columns referenced from [dag.new_table > cust_level.cust_ssn]. Expected"
                 ..vim.inspect(exp)..", got "..vim.inspect(res))
         fails = fails + 1
     end
@@ -410,12 +410,12 @@ function test_card_columns_one_up_of()
     -- this segfaulted it for some reason
     vim.api.nvim_buf_call(cll_buf,
             function()
-                highlight_card_one_up_of_column('owner_id',92,50)
+                highlight_card_references_from_column('owner_id',92,50)
             end)
     res = vim.api.nvim_buf_get_extmarks(cll_buf, cns, 0, -1, {})
     exp = { { 1, 78, 89 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAILS: columns one up of [dag.new_table.cust_ssn]. Expected"
+        print("FAILS: columns referenced from [dag.new_table.cust_ssn]. Expected"
                 ..vim.inspect(exp)..", got "..vim.inspect(res))
         fails = fails + 1
     end
@@ -449,7 +449,7 @@ function test_card_columns_one_up_of()
         fails = fails + 1
     end
 
-    -- this diverged from one up of behavior... whoops. Not good. Needs to error
+    -- this diverged from references from col behavior... whoops. Not good. Needs to error
     -- Make sure the source code here has cust_ssn unaliased and defined in 2 places
     vim.api.nvim_buf_call(cll_buf,
             function()
@@ -472,7 +472,7 @@ function test_card_columns_one_up_of()
     res = vim.api.nvim_buf_get_extmarks(dag_buf, cns, 0, -1, {})
     exp = { { 1, 1, 13 }, { 2, 38, 11 } }
     if(not tbl_equals(res, exp, false)) then
-        print("FAILS: columns one up of [dag.new_table > tnaa]. Expected"
+        print("FAILS: columns referenced from [dag.new_table > tnaa]. Expected"
                 ..vim.inspect(exp)..", got "..vim.inspect(res))
         fails = fails + 1
     end
@@ -485,7 +485,7 @@ fails = fails + test_card_parent_context()
 fails = fails + test_card_references_to_context()
 --fails = fails + test_card_columns_in_table()
 fails = fails + test_card_contexts_upstream_of()
-fails = fails + test_card_columns_one_up_of()
+fails = fails + test_card_references_from_column()
 card_reset()
 print(fails.." test failures")
 

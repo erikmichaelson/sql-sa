@@ -512,10 +512,10 @@ std::list<TSNode> column_definition(card_runtime * r, TSNode parent_ref, TSNode 
 
     The one issue here is we can't punt on ordering anymore. No more just "list of upstream contexts"
     Think I'll architect this like the recursive "full" vs. "helper" functions in TVD's classes:
-    Make one "columns_one_up_of_column(...)" and "column_lineage(...)" the first returning a list, the second a DAG
+    Make one "references_from_column(...)" and "column_lineage(...)" the first returning a list, the second a DAG
      * TODO: figure out how to return a DAG in C++
 */
-std::list<TSNode> columns_one_up_of_column(card_runtime * r, TSNode parent_ref, const char * column_name) {
+std::list<TSNode> references_from_column(card_runtime * r, TSNode parent_ref, const char * column_name) {
     std::list<TSNode> reflist;
 
     // kind of convention to pass the parent node + the string name of the column, but realizing now it
@@ -625,7 +625,7 @@ std::list<TSNode> column_lineage(card_runtime * r, TSNode column) {
     return reflist;
 }
 
-std::list<TSNode> columns_one_down_of_column(card_runtime * r, TSNode parent_ref, const char * column_name) {
+std::list<TSNode> references_to_column(card_runtime * r, TSNode parent_ref, const char * column_name) {
     std::list<TSNode> reflist;
     std::list<TSNode> contexts_to_search = references_to_context(r, parent_ref, node_to_string(r->source, parent_ref));
     TSQueryMatch cur_match;
@@ -798,7 +798,7 @@ extern "C" {
         return ret;
     }
 
-    cd_nodelist columns_one_up_of_column_c(card_runtime * r, const char * column_name, int cursor_row, int cursor_column) {
+    cd_nodelist references_from_column_c(card_runtime * r, const char * column_name, int cursor_row, int cursor_column) {
         cd_nodelist ret;
 
         TSPoint cursor_point;
@@ -810,7 +810,7 @@ extern "C" {
             return ret;
         }
 
-        std::list<TSNode> res = columns_one_up_of_column(r, parent_ref, column_name);
+        std::list<TSNode> res = references_from_column(r, parent_ref, column_name);
         ret.points = (int *)malloc(sizeof(int) * 4 * res.size());
         int i = 0;
         for(TSNode n: res) {
@@ -854,7 +854,7 @@ extern "C" {
         return ret;
     }
 
-    cd_nodelist columns_one_down_of_column_c(card_runtime * r, const char * column_name, int cursor_row, int cursor_column) {
+    cd_nodelist references_to_column_c(card_runtime * r, const char * column_name, int cursor_row, int cursor_column) {
         cd_nodelist ret;
 
         TSPoint cursor_point;
@@ -866,7 +866,7 @@ extern "C" {
             return ret;
         }
 
-        std::list<TSNode> res = columns_one_down_of_column(r, parent_ref, column_name);
+        std::list<TSNode> res = references_to_column(r, parent_ref, column_name);
         ret.points = (int *)malloc(sizeof(int) * 4 * res.size());
         int i = 0;
         for(TSNode n: res) {

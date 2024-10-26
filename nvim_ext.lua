@@ -61,9 +61,9 @@ ffi.cdef[[
                                                 ,int row, int col);
     cd_nodelist contexts_upstream_of_context_c(card_runtime * r, const char * context_name
                                                 ,int row, int col);
-    cd_nodelist columns_one_up_of_column_c(card_runtime * r, const char * column_name
+    cd_nodelist references_from_column_c(card_runtime * r, const char * column_name
                                                 ,int row, int col);
-    cd_nodelist columns_one_down_of_column_c(card_runtime * r, const char * column_name
+    cd_nodelist references_to_column_c(card_runtime * r, const char * column_name
                                                 ,int row, int col);
 
     typedef struct { char ** fields; int size; } cd_stringlist;
@@ -219,11 +219,11 @@ function highlight_card_upstream_of_context(context_name, row, col)
     print(points.size.." contexts upstream of "..context_name)
 end
 
-function highlight_card_one_up_of_column(column_name, row, col)
+function highlight_card_references_from_column(column_name, row, col)
     api.nvim_buf_clear_namespace(api.nvim_get_current_buf(), cns, 0, -1)
     vim.cmd('syntax off')
     local points = ffi.new("cd_nodelist[1]")
-    points = card.columns_one_up_of_column_c(r, column_name, row, col)
+    points = card.references_from_column_c(r, column_name, row, col)
     for p = 0, (points.size - 1) do
         api.nvim_buf_add_highlight(api.nvim_get_current_buf(), cns, 'WildMenu'
             ,tonumber(points.points[(p * 4) + 0])
@@ -233,11 +233,11 @@ function highlight_card_one_up_of_column(column_name, row, col)
     print(points.size.." columns upstream of "..column_name)
 end
 
-function highlight_card_one_down_of_column(column_name, row, col)
+function highlight_card_references_to_column(column_name, row, col)
     api.nvim_buf_clear_namespace(0, cns, 0, -1)
     vim.cmd('syntax off')
     local points = ffi.new("cd_nodelist[1]")
-    points = card.columns_one_down_of_column_c(r, column_name, row, col)
+    points = card.references_to_column_c(r, column_name, row, col)
     for p = 0, (points.size - 1) do
         api.nvim_buf_add_highlight(0, cns, 'WildMenu'
             ,tonumber(points.points[(p * 4) + 0])
@@ -316,9 +316,9 @@ vim.keymap.set('v', '<Leader>j'
 vim.keymap.set('v', '<Leader>k'
     ,':lua highlight_card_upstream_of_context(get_visual_selection(), vim.fn.getpos("\'<")[2], vim.fn.getpos("\'<")[1])<CR>')
 vim.keymap.set('v', '<Leader>u'
-    ,':lua highlight_card_one_up_of_column(get_visual_selection(), vim.fn.getpos("\'<")[2], vim.fn.getpos("\'<")[1])<CR>')
+    ,':lua highlight_card_references_from_column(get_visual_selection(), vim.fn.getpos("\'<")[2], vim.fn.getpos("\'<")[1])<CR>')
 vim.keymap.set('v', '<Leader>d'
-    ,':lua highlight_card_one_down_of_column(get_visual_selection(), vim.fn.getpos("\'<")[2], vim.fn.getpos("\'<")[1])<CR>')
+    ,':lua highlight_card_references_to_column(get_visual_selection(), vim.fn.getpos("\'<")[2], vim.fn.getpos("\'<")[1])<CR>')
 vim.keymap.set('v', '<Leader>c'
     ,':lua highlight_card_field_defs_in_context(get_visual_selection(), vim.fn.getpos("\'<")[2], vim.fn.getpos("\'<")[1])<CR>')
 
