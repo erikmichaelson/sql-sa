@@ -91,6 +91,40 @@ source = api.nvim_buf_get_lines(0, 0, -1, true)
 source = table.concat(source, '\n')
 r = card.card_runtime_init_c(source)
 
+-- changeset will hold all of the pending changes between the client and the card_runtime
+changeset = {}
+api.nvim_buf_attach(0, false, {
+    on_bytes = function(...)
+        changeset.insert(events, {})
+    end
+})
+
+function card_sync_runtime()
+    local tsie = ffi.new('TSInputEdit[?]',#changeset)
+    local i = 0
+    for c in changeset do
+        -- based on neovim docs: https://neovim.io/doc/user/api.html#nvim_buf_attach()
+        local sp  = ffi.new('TSPoint[1]')
+        local oep = ffi.new('TSPoint[1]')
+        local nep = ffi.new('TSPoint[1]')
+        tsie[i].start_byte   = c[6]
+        tsie[i].old_end_byte = c[9]
+        tsie[i].new_end_byte = c[12]
+        sp.row               = c[4]
+        sp.column            = c[5]
+        oep.row              = c[7]
+        oep.column           = c[8]
+        nep.row              = c[10]
+        nep.column           = c[11]
+        tsie[i].start_point   = sp
+        tsie[i].old_end_point = oep
+        tsie[i].new_end_point = nep
+        i = i + 1
+    end
+    card.card_runtime_sync(r, i, tsie)
+    changeset = {}
+end
+
 function card_get_parent_context()
     api.nvim_buf_clear_namespace(0, cns, 0, -1)
     local point = ffi.new('TSPoint[1]')

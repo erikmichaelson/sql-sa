@@ -110,6 +110,23 @@ void card_runtime_deinit(card_runtime * r) {
 }
 
 /*
+    returns 0 on success, 1 otherwise
+    updates the ts_tree and source objects in the card_runtime
+*/
+int card_runtime_sync(card_runtime * r, int num_edits, TSInputEdit * edits) {
+    // so idk how to update just part of the source but we'll figure it out
+    // for now assume that the source is correctly updated
+    for(int i = 0; i < num_edits; i++) {
+        // not sure why this takes an edit address not an edit
+        // doing some old school "pointer arithmetic"
+        ts_tree_edit(r->tree, edits + i);
+        TSInput i;
+        i->encoding = TSInputEncodingUTF8;
+        TSTree * new_tree = ts_parser_parse(r->parser, r->tree, );
+    }
+}
+
+/*
 char * get_source_for_field(TSNode term_stmt) {
     char * alias_ref;
     // term >> _expression >> field >> object_reference >> identifier >> _identifier
