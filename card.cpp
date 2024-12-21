@@ -67,7 +67,7 @@ card_runtime * card_runtime_init(const char * source) {
     ret->cursor = ts_query_cursor_new();
     char * buf = (char *)malloc(500);
     // TODO: make this not a security bloodbath by doing a checksum on the query binaries
-    FILE * fd = fopen("queries/all_queries.tsq","r");
+    FILE * fd = fopen("/Users/erikmichaelson/CS/cpp_poly/queries/all_queries.tsq","r");
     size_t check = fread(buf, 1, 398, fd);
     buf[398] = EOF;
     ret->REFERENCES_Q      = ts_query_deserialize(buf, ret->language);
@@ -119,12 +119,18 @@ int card_runtime_sync(card_runtime * r, int num_edits, TSInputEdit * edits) {
     for(int i = 0; i < num_edits; i++) {
         // not sure why this takes an edit address not an edit
         // doing some old school "pointer arithmetic"
-        ts_tree_edit(r->tree, edits + i);
-        TSInput i;
-        i->encoding = TSInputEncodingUTF8;
-        TSTree * new_tree = ts_parser_parse(r->parser, r->tree, );
+        ts_tree_edit(r->tree, &edits[i]);
+        TSInput in;
+        in.encoding = TSInputEncodingUTF8;
+        TSTree * new_tree = ts_parser_parse(r->parser, r->tree, in);
     }
+    return 0;
 }
+
+typedef struct {
+    TSPoint start;
+    TSPoint end;
+} point_pair;
 
 /*
 char * get_source_for_field(TSNode term_stmt) {
@@ -145,6 +151,61 @@ bool is_subcontext(TSNode n) {
     return ts_node_symbol(n) == SUBQUERY_NODE || ts_node_symbol(n) == CTE_NODE;
 }
 
+const char * (card_runtime * r, TSNode parent_ref) {
+    TSNode ddl_node = ddl_node_for_name_node(r->tree, parent_ref);
+    ddl.query(
+    const char * jq = "(join) @j";
+    TSQueryError q_error;
+    int q_error_offset;
+    TSQuery * joinq = ts_query_new(
+        tree_sitter_sql(),
+        jq,
+        strlen(jq),
+        &q_error_offset,
+        &q_error
+    );
+
+    const char * wq = "(where) @w";
+    TSQuery * whereq = ts_query_new(
+        tree_sitter_sql(),
+        wq,
+        strlen(wq),
+        &q_error_offset,
+        &q_error
+    );
+    char * preds = malloc(512); // blind guess to make it work now
+    int i = 0;
+    // keep inner joins, keep left joins IFF fields from that table are used
+    // hmmm that's harder than it seems. Need to pseudo bind again
+    TSQueryMatch curmatch;
+    ts_query_cursor_exec(r->cursor, whereq, ddl_node);
+    while(ts_query_cursor_next_match(r->cursor, &curmatch)) {
+        if(ts_langauge_symbol_name(r->language
+                                  ,ts_node_symbol(ts_node_child(curmatch.captures[0].node,0))) == "keyword_inner") {
+            i += ;
+            // hacky. This will get us the name of the table that's being joined to
+            char * n = node_to_string(r->soruce, curmatch.captures[0].node);
+            printf("%s", n);
+            (void)strcpy(ret + i, n);
+            i += strlen(n);
+        }
+    }
+    char * joins = malloc(512); // blind guess to make it work now
+    i = 0;
+    ts_query_cursor_exec(r->cursor, joinq, ddl_node);
+    while(ts_query_cursor_next_match(r->cursor, &curmatch)) {
+        if(ts_langauge_symbol_name(r->language
+                                  ,ts_node_symbol(ts_node_child(curmatch.captures[0].node,0))) == "keyword_inner") {
+            i += ;
+            // hacky. This will get us the name of the table that's being joined to
+            char * n = node_to_string(r->soruce, curmatch.captures[0].node);
+            printf("%s", n);
+            (void)strcpy(ret + i, n);
+            i += strlen(n);
+        }
+    }
+    return (const char *) ret;
+}
 
 std::list<std::string> get_table_names(card_runtime * r) {
     TSQueryMatch table_match;
@@ -271,6 +332,7 @@ TSNode context_definition(card_runtime * r, TSNode parent_ref, const char * cont
 }
 
 TSNode context_ddl(card_runtime * r, TSPoint p, const char * context_name) {
+    /*
     TSNode hl_node;
     if(p.row == 0 && p.column == 0)
         hl_node = ts_tree_root_node(r->tree);
@@ -286,8 +348,10 @@ TSNode context_ddl(card_runtime * r, TSPoint p, const char * context_name) {
                 hl_node = ts_node_parent(ts_node_parent(hl_node));
             }
         }
-    }
-    TSNode def_name_node = context_definition(r, hl_node, context_name);
+    }*/
+    /* TODO: what the heck am I doing here? I literally reimplement ALMOST the same
+       same function twice here. The only problem is it crashes the second time.*/
+    TSNode def_name_node = parent_context(r->tree, p);
     if(ts_node_symbol(def_name_node) == 393) {
         fprintf(stderr, "ERROR: context by name %s not found in the source code\n", context_name);
         return def_name_node;
@@ -895,6 +959,19 @@ extern "C" {
         }
         ret.size = i;
 
+        return ret;
+    }
+
+    cd_stringlist get_table_names_c(card_runtime * r) {
+        cd_stringlist ret;
+        std::list<std::string> names = get_table_names(r);
+        ret.fields = (char **) malloc(sizeof(char *) * names.size());
+        int i = 0;
+        for(std::string n: names) {
+            ret.fields[i] = (char *)n.c_str();
+            i++;
+        }
+        ret.size = i;
         return ret;
     }
 

@@ -1,0 +1,9 @@
+[package]
+name = "card"
+
+[dependencies]
+tree-sitter = { path = "/Users/erikmichaelson/CS/tree-sitter/lib" }
+
+[lib]
+path = "include/card_bindings.rs"
+lib-type = "dylib"

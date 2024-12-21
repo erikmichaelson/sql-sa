@@ -1,0 +1,63 @@
+in refs from, pre anything
+in context_defintion, after vanilla DDL search
+returning from context_defintion
+in refs from, post parent node finding. Def node symbol: 478, create_table
+in refs from, query NOT execed
+in refs from, query execed
+in refs from, all captures captured
+Everything but merging. Node: tnaa
+in refs from, pre anything
+in context_defintion, after vanilla DDL search
+in context_defintion, exec-ed subquery search, looking for tnaa
+in context_defintion, subquery FOUND
+returning from context_defintion
+in refs from, post parent node finding. Def node symbol: 608, relation
+in refs from, query NOT execed
+in refs from, query execed
+in refs from, all captures captured
+Merged
+Everything but merging. Node: cust_level
+in refs from, pre anything
+in context_defintion, after vanilla DDL search
+in context_defintion, exec-ed subquery search, looking for cust_level
+in context_defintion, subquery FOUND
+returning from context_defintion
+in refs from, post parent node finding. Def node symbol: 460, cte
+in refs from, query NOT execed
+in refs from, query execed
+in refs from, all captures captured
+Merged
+Everything but merging. Node: elt.leads
+obj_ref node: cust_level
+in refs from, pre anything
+in context_defintion, after vanilla DDL search
+in context_defintion, exec-ed subquery search, looking for elt.leads
+returning from context_defintion
+in refs from, post parent node finding. Def node symbol: 393, program
+in refs from, query NOT execed
+in refs from, query execed
+in refs from, all captures captured
+Merged
+Everything but merging. Node: etl.leads
+in refs from, pre anything
+in context_defintion, after vanilla DDL search
+in context_defintion, exec-ed subquery search, looking for etl.leads
+returning from context_defintion
+in refs from, post parent node finding. Def node symbol: 608, relation
+in refs from, query NOT execed
+in refs from, query execed
+in refs from, all captures captured
+Merged
+Everything but merging. Node: tnaa
+in refs from, pre anything
+in context_defintion, after vanilla DDL search
+in context_defintion, exec-ed subquery search, looking for tnaa
+in context_defintion, subquery FOUND
+returning from context_defintion
+in refs from, post parent node finding. Def node symbol: 608, relation
+in refs from, query NOT execed
+in refs from, query execed
+in refs from, all captures captured
+Merged
+Everything but merging. Node: etl.salesmen
+obj_ref node: tnaa

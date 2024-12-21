@@ -1,0 +1,392 @@
+Analysis of sampling nvim (pid 72184) every 1 millisecond
+Process:         nvim [72184]
+Path:            /usr/local/Cellar/neovim/0.10.0/bin/nvim
+Load Address:    0x102d99000
+Identifier:      nvim
+Version:         0
+Code Type:       X86-64 (translated)
+Platform:        macOS
+Parent Process:  nvim [72183]
+
+Date/Time:       2024-10-04 07:19:59.391 -0500
+Launch Time:     2024-10-04 07:18:30.039 -0500
+OS Version:      macOS 13.5.1 (22G90)
+Report Version:  7
+Analysis Tool:   /usr/bin/sample
+
+Physical footprint:         15.1M
+Physical footprint (peak):  15.1M
+Idle exit:                  untracked
+----
+
+Call graph:
+    8555 Thread_4695709   DispatchQueue_1: com.apple.main-thread  (serial)
+    + 8538 start  (in dyld) + 1903  [0x2032f241f]
+    + ! 8538 main  (in nvim) + 10375  [0x102ee38f6]
+    + !   8312 state_enter  (in nvim) + 185  [0x102fc6df9]
+    + !   : 7147 os_inchar  (in nvim) + 288  [0x102f4e36b]
+    + !   : | 7147 inbuf_poll.llvm.885638675758020718  (in nvim) + 410  [0x102f4e716]
+    + !   : |   7147 loop_poll_events  (in nvim) + 89  [0x102e5a8e5]
+    + !   : |     7147 uv_run  (in libuv.1.dylib) + 258  [0x10bf75ef9]
+    + !   : |       7147 kevent  (in libsystem_kernel.dylib) + 10  [0x7ff8032251fe]
+    + !   : |         7147 ???  (in <unknown binary>)  [0x7ff892e6e9a8]
+    + !   : 1165 os_inchar  (in nvim) + 570  [0x102f4e485]
+    + !   :   1165 inbuf_poll.llvm.885638675758020718  (in nvim) + 410  [0x102f4e716]
+    + !   :     1165 loop_poll_events  (in nvim) + 116  [0x102e5a900]
+    + !   :       1165 uv_run  (in libuv.1.dylib) + 258  [0x10bf75ef9]
+    + !   :         1165 kevent  (in libsystem_kernel.dylib) + 10  [0x7ff8032251fe]
+    + !   :           1165 ???  (in <unknown binary>)  [0x7ff892e6e9a8]
+    + !   208 state_enter  (in nvim) + 265  [0x102fc6e49]
+    + !   : 208 vgetc  (in nvim) + 272  [0x102e99bc5]
+    + !   :   208 vgetorpeek.llvm.8719670785551112670  (in nvim) + 4158  [0x102e9b15d]
+    + !   :     208 inchar  (in nvim) + 576  [0x102e97c6e]
+    + !   :       208 os_inchar  (in nvim) + 219  [0x102f4e326]
+    + !   :         208 inbuf_poll.llvm.885638675758020718  (in nvim) + 410  [0x102f4e716]
+    + !   :           208 loop_poll_events  (in nvim) + 89  [0x102e5a8e5]
+    + !   :             208 uv_run  (in libuv.1.dylib) + 258  [0x10bf75ef9]
+    + !   :               207 kevent  (in libsystem_kernel.dylib) + 10  [0x7ff8032251fe]
+    + !   :               | 207 ???  (in <unknown binary>)  [0x7ff892e6e9a8]
+    + !   :               1 uv__io_poll  (in libuv.1.dylib) + 1680  [0x10bf85c6a]
+    + !   :                 1 uv__stream_io  (in libuv.1.dylib) + 1186  [0x10bf7f081]
+    + !   :                   1 invoke_read_cb  (in nvim) + 179  [0x102e5c95e]
+    + !   :                     1 read_event  (in nvim) + 60  [0x102e5c9b8]
+    + !   :                       1 receive_msgpack.llvm.5151710296126971586  (in nvim) + 175  [0x102f1a7bf]
+    + !   :                         1 parse_msgpack.llvm.5151710296126971586  (in nvim) + 545  [0x102f1bb42]
+    + !   :                           1 request_event  (in nvim) + 97  [0x102f1bff8]
+    + !   :                             1 input_enqueue  (in nvim) + 0  [0x102f4e8b0]
+    + !   8 state_enter  (in nvim) + 336  [0x102fc6e90]
+    + !   : 5 normal_execute.llvm.7492310283211833901  (in nvim) + 4633  [0x102f22463]
+    + !   : | 3 nv_colon.llvm.7492310283211833901  (in nvim) + 391  [0x102f24396]
+    + !   : | + 3 do_cmdline  (in nvim) + 2026  [0x102e69d3c]
+    + !   : | +   2 command_line_enter.llvm.7594717612699589986  (in nvim) + 2346  [0x102e7abc1]
+    + !   : | +   ! 2 state_enter  (in nvim) + 265  [0x102fc6e49]
+    + !   : | +   !   1 ???  (in Rosetta JIT)  [0x1038750b0]
+    + !   : | +   !   : 1 ???  (in libRosettaRuntime)  load address 0x10b66a000 + 0xa368  [0x10b674368]
+    + !   : | +   !   1 vgetc  (in nvim) + 1530  [0x102e9a0af]
+    + !   : | +   !     1 ???  (in Rosetta JIT)  [0x103781e68]
+    + !   : | +   !       1 ???  (in libRosettaRuntime)  load address 0x10b66a000 + 0x3df04  [0x10b6a7f04]
+    + !   : | +   1 ???  (in Rosetta JIT)  [0x103849ce0]
+    + !   : | +     1 ???  (in libRosettaRuntime)  load address 0x10b66a000 + 0x3f4f4  [0x10b6a94f4]
+    + !   : | 1 end_word  (in nvim) + 0  [0x102feab6a]
+    + !   : | 1 may_start_select  (in nvim) + 0  [0x102f20c5d]
+    + !   : 1 normal_execute.llvm.7492310283211833901  (in nvim) + 608  [0x102f214aa]
+    + !   : | 1 add_to_showcmd  (in nvim) + 411  [0x102f1f418]
+    + !   : |   1 vgetorpeek.llvm.8719670785551112670  (in nvim) + 4158  [0x102e9b15d]
+    + !   : |     1 inchar  (in nvim) + 576  [0x102e97c6e]
+    + !   : |       1 os_inchar  (in nvim) + 219  [0x102f4e326]
+    + !   : |         1 inbuf_poll.llvm.885638675758020718  (in nvim) + 410  [0x102f4e716]
+    + !   : |           1 loop_poll_events  (in nvim) + 116  [0x102e5a900]
+    + !   : |             1 uv_run  (in libuv.1.dylib) + 258  [0x10bf75ef9]
+    + !   : |               1 kevent  (in libsystem_kernel.dylib) + 10  [0x7ff8032251fe]
+    + !   : |                 1 ???  (in <unknown binary>)  [0x7ff892e6e9a8]
+    + !   : 1 normal_execute.llvm.7492310283211833901  (in nvim) + 3952  [0x102f221ba]
+    + !   : | 1 clear_showcmd  (in nvim) + 73  [0x102f1ed21]
+    + !   : |   1 vgetorpeek.llvm.8719670785551112670  (in nvim) + 4158  [0x102e9b15d]
+    + !   : |     1 inchar  (in nvim) + 576  [0x102e97c6e]
+    + !   : |       1 os_inchar  (in nvim) + 219  [0x102f4e326]
+    + !   : |         1 inbuf_poll.llvm.885638675758020718  (in nvim) + 410  [0x102f4e716]
+    + !   : |           1 loop_poll_events  (in nvim) + 116  [0x102e5a900]
+    + !   : |             1 uv_run  (in libuv.1.dylib) + 258  [0x10bf75ef9]
+    + !   : |               1 kevent  (in libsystem_kernel.dylib) + 10  [0x7ff8032251fe]
+    + !   : |                 1 ???  (in <unknown binary>)  [0x7ff892e6e9a8]
+    + !   : 1 normal_execute.llvm.7492310283211833901  (in nvim) + 4799  [0x102f22509]
+    + !   :   1 do_pending_operator  (in nvim) + 3343  [0x102f37484]
+    + !   5 state_enter  (in nvim) + 62  [0x102fc6d7e]
+    + !   : 2 normal_check.llvm.7492310283211833901  (in nvim) + 762  [0x102f2a3cc]
+    + !   : | 1 decor_providers_start  (in nvim) + 0  [0x102df781b]
+    + !   : | 1 update_screen  (in nvim) + 3403  [0x102e07d50]
+    + !   : |   1 win_update  (in nvim) + 6430  [0x102e099ab]
+    + !   : |     1 win_line  (in nvim) + 13133  [0x102e02742]
+    + !   : |       1 get_syntax_attr  (in nvim) + 194  [0x102fd2db6]
+    + !   : |         1 syn_current_attr.llvm.6934444628176441194  (in nvim) + 957  [0x102fd31fe]
+    + !   : |           1 syn_regexec  (in nvim) + 136  [0x102fd5727]
+    + !   : |             1 vim_regexec_multi  (in nvim) + 239  [0x102f6ac64]
+    + !   : |               1 nfa_regexec_both  (in nvim) + 913  [0x102f7ee59]
+    + !   : |                 1 nfa_regmatch  (in nvim) + 507  [0x102f7f8a0]
+    + !   : 2 normal_check.llvm.7492310283211833901  (in nvim) + 886  [0x102f2a448]
+    + !   : | 1 apply_autocmds_group  (in nvim) + 1653  [0x102dd0420]
+    + !   : | + 1 path_tail  (in nvim) + 51  [0x102f53795]
+    + !   : | 1 apply_autocmds_group  (in nvim) + 1953  [0x102dd054c]
+    + !   : |   1 do_cmdline  (in nvim) + 8769  [0x102e6b793]
+    + !   : |     1 execute_cmd0  (in nvim) + 217  [0x102e6e9bb]
+    + !   : |       1 ex_call  (in nvim) + 933  [0x102e52d64]
+    + !   : |         1 get_func_tv  (in nvim) + 463  [0x102e4ccad]
+    + !   : |           1 call_func  (in nvim) + 1831  [0x102e4d559]
+    + !   : |             1 call_user_func  (in nvim) + 2825  [0x102e4e219]
+    + !   : |               1 do_cmdline  (in nvim) + 3111  [0x102e6a179]
+    + !   : |                 1 parse_command_modifiers  (in nvim) + 174  [0x102e6ceb0]
+    + !   : 1 normal_check.llvm.7492310283211833901  (in nvim) + 1225  [0x102f2a59b]
+    + !   :   1 redraw_statuslines  (in nvim) + 65  [0x102e0bb6e]
+    + !   :     1 win_redr_status  (in nvim) + 1173  [0x102fc78dd]
+    + !   :       1 win_redr_ruler  (in nvim) + 1493  [0x102fc8173]
+    + !   3 state_enter  (in nvim) + 221  [0x102fc6e1d]
+    + !   : 2 vgetorpeek.llvm.8719670785551112670  (in nvim) + 718  [0x102e9a3ed]
+    + !   : | 2 loop_poll_events  (in nvim) + 116  [0x102e5a900]
+    + !   : |   2 uv_run  (in libuv.1.dylib) + 258  [0x10bf75ef9]
+    + !   : |     2 kevent  (in libsystem_kernel.dylib) + 10  [0x7ff8032251fe]
+    + !   : |       2 ???  (in <unknown binary>)  [0x7ff892e6e9a8]
+    + !   : 1 vgetorpeek.llvm.8719670785551112670  (in nvim) + 1799  [0x102e9a826]
+    + !   1 may_sync_undo  (in nvim) + 0  [0x102e99468]
+    + !   1 state_enter  (in nvim) + 160  [0x102fc6de0]
+    + !     1 ui_flush  (in nvim) + 413  [0x102ff7971]
+    + !       1 ui_call_flush  (in nvim) + 35  [0x102ff485a]
+    + !         1 remote_ui_flush  (in nvim) + 136  [0x102dc1341]
+    + !           1 ui_flush_buf.llvm.2642869364197025462  (in nvim) + 196  [0x102dc1271]
+    + !             1 _malloc_zone_malloc  (in libsystem_malloc.dylib) + 0  [0x7ff8030abd05]
+    + 13 ???  (in libluajit-5.1.2.1.1716656478.dylib)  load address 0x10be64000 + 0x83a6  [0x10be6c3a6]
+    + ! 12 contexts_upstream_of_context_c  (in libcard.dylib) + 34  [0x10c1ecb42]
+    + ! : 12 card_runtime_init(char const*)  (in libcard.dylib) + 138  [0x10c1e820a]
+    + ! :   12 ts_parser_parse_string  (in libcard.dylib) + 63  [0x10c1fc88f]
+    + ! :     2 ts_parser_parse  (in libcard.dylib) + 4820  [0x10c1fa0d4]
+    + ! :     | 1 ???  (in Rosetta JIT)  [0x10387f550]
+    + ! :     | + 1 ???  (in Rosetta Runtime Routines)  [0x1036694a8]
+    + ! :     | +   1 ???  (in runtime)  load address 0x7ff7fff29000 + 0xaaf8  [0x7ff7fff33af8]
+    + ! :     | +     1 ???  (in runtime)  load address 0x7ff7fff29000 + 0xf0a4  [0x7ff7fff380a4]
+    + ! :     | +       1 ???  (in runtime)  load address 0x7ff7fff29000 + 0x3b9c  [0x7ff7fff2cb9c]
+    + ! :     | 1 ts_lex  (in sql_syn.o) + 121  [0x10c4611e9]
+    + ! :     |   1 ???  (in Rosetta Runtime Routines)  [0x10c62d4a8]
+    + ! :     |     1 ???  (in runtime)  load address 0x7ff7fff29000 + 0xaaf8  [0x7ff7fff33af8]
+    + ! :     |       1 ???  (in runtime)  load address 0x7ff7fff29000 + 0xd7f0  [0x7ff7fff367f0]
+    + ! :     |         1 ???  (in runtime)  load address 0x7ff7fff29000 + 0x1eea4  [0x7ff7fff47ea4]
+    + ! :     |           1 ???  (in runtime)  load address 0x7ff7fff29000 + 0x1cd28  [0x7ff7fff45d28]
+    + ! :     |             1 ???  (in runtime)  load address 0x7ff7fff29000 + 0x4634  [0x7ff7fff2d634]
+    + ! :     2 ts_parser_parse  (in libcard.dylib) + 6611  [0x10c1fa7d3]
+    + ! :     | 1 ???  (in Rosetta JIT)  [0x103880220]
+    + ! :     | + 1 ???  (in Rosetta Runtime Routines)  [0x1036681bc]
+    + ! :     | 1 ???  (in Rosetta JIT)  [0x103880290]
+    + ! :     |   1 ???  (in libRosettaRuntime)  load address 0x10b66a000 + 0x3e5b8  [0x10b6a85b8]
+    + ! :     2 ts_parser_parse  (in libcard.dylib) + 8994  [0x10c1fb122]
+    + ! :     | 2 ts_language_table_entry  (in libcard.dylib) + 115  [0x10c1f3943]
+    + ! :     1 ???  (in Rosetta JIT)  [0x103880c50]
+    + ! :     | 1 ???  (in libRosettaRuntime)  load address 0x10b66a000 + 0x3f12c  [0x10b6a912c]
+    + ! :     1 ???  (in Rosetta JIT)  [0x103885f0c]
+    + ! :     | 1 ???  (in libRosettaRuntime)  load address 0x10b66a000 + 0xa944  [0x10b674944]
+    + ! :     1 ???  (in Rosetta JIT)  [0x10389fa74]
+    + ! :     | 1 ???  (in Rosetta JIT)  [0x103887ee0]
+    + ! :     1 ts_parser_parse  (in libcard.dylib) + 7570  [0x10c1fab92]
+    + ! :     | 1 ts_language_table_entry  (in libcard.dylib) + 115  [0x10c1f3943]
+    + ! :     1 ts_parser_parse  (in libcard.dylib) + 12031  [0x10c1fbcff]
+    + ! :     | 1 ts_parser__do_all_potential_reductions  (in libcard.dylib) + 384  [0x10c1fef80]
+    + ! :     |   1 ts_language_table_entry  (in libcard.dylib) + 144  [0x10c1f3960]
+    + ! :     1 ts_stack_is_active  (in libcard.dylib) + 0  [0x10c20ba50]
+    + ! 1 contexts_upstream_of_context_c  (in libcard.dylib) + 251  [0x10c1ecc1b]
+    + !   1 contexts_upstream_of_context(card_runtime*, TSNode, char const*)  (in libcard.dylib) + 201  [0x10c1eb739]
+    + !     1 std::set<std::basic_string<char>>::insert[abi:v160006](std::basic_string<char>&&)  (in libcard.dylib) + 29  [0x10c1ebedd]
+    + !       1 std::__tree<std::basic_string<char>>::__insert_unique[abi:v160006](std::basic_string<char>&&)  (in libcard.dylib) + 49  [0x10c1efac1]
+    + !         1 std::__tree<std::basic_string<char>>::__emplace_unique_key_args<std::basic_string<char>, std::basic_string<char>>(std::basic_string<char> const&, std::basic_string<char>&&)  (in libcard.dylib) + 94  [0x10c1efb6e]
+    + !           1 std::__tree<std::basic_string<char>>::__construct_node<std::basic_string<char>>(std::basic_string<char>&&)  (in libcard.dylib) + 147  [0x10c1efe13]
+    + !             1 std::allocator_traits<std::allocator<std::__tree_node<std::basic_string<char>, void*>>>::construct[abi:v160006]<std::basic_string<char>, std::basic_string<char>, void>(std::allocator<std::__tree_node<std::basic_string<char>, void*>>&, std::basic_string<char>*, std::basic_string<char>&&)  (in libcard.dylib) + 37  [0x10c1f05a5]
+    + !               1 std::allocator<std::__tree_node<std::basic_string<char>, void*>>::construct[abi:v160006]<std::basic_string<char>, std::basic_string<char>>(std::basic_string<char>*, std::basic_string<char>&&)  (in libcard.dylib) + 33  [0x10c1f07d1]
+    + !                 1 std::basic_string<char>::basic_string[abi:v160006](std::basic_string<char>&&)  (in libcard.dylib) + 29  [0x10c1f07fd]
+    + !                   1 std::basic_string<char>::basic_string[abi:v160006](std::basic_string<char>&&)  (in libcard.dylib) + 74  [0x10c1f085a]
+    + !                     1 std::basic_string<char>::__is_long[abi:v160006]() const  (in libcard.dylib) + 21  [0x10c1ee0e5]
+    + !                       1 std::__compressed_pair<std::basic_string<char>::__rep>::first[abi:v160006]() const  (in libcard.dylib) + 12  [0x10c1ee15c]
+    + 2 ???  (in libluajit-5.1.2.1.1716656478.dylib)  load address 0x10be64000 + 0x5f46  [0x10be69f46]
+    + ! 1 nlua_api_nvim_exec2  (in nvim) + 281  [0x102eceef2]
+    + ! : 1 nvim_exec2  (in nvim) + 54  [0x102dc643e]
+    + ! :   1 exec_impl  (in nvim) + 220  [0x102dc6598]
+    + ! :     1 source_using_linegetter.llvm.2912222981164210333  (in nvim) + 301  [0x102f91a91]
+    + ! :       1 do_cmdline  (in nvim) + 8769  [0x102e6b793]
+    + ! :         1 execute_cmd0  (in nvim) + 217  [0x102e6e9bb]
+    + ! :           1 ex_syntax  (in nvim) + 207  [0x102fd40a5]
+    + ! :             1 syn_cmd_onoff.llvm.6934444628176441194  (in nvim) + 125  [0x102fd67b0]
+    + ! :               1 do_cmdline  (in nvim) + 8769  [0x102e6b793]
+    + ! :                 1 execute_cmd0  (in nvim) + 217  [0x102e6e9bb]
+    + ! :                   1 cmd_source  (in nvim) + 106  [0x102f91688]
+    + ! :                     1 do_source  (in nvim) + 1810  [0x102f9234f]
+    + ! :                       1 getsourceline  (in nvim) + 333  [0x102f928be]
+    + ! :                         1 get_one_sourceline  (in nvim) + 132  [0x102f9328f]
+    + ! :                           1 fgets  (in libsystem_c.dylib) + 98  [0x7ff80312764b]
+    + ! :                             1 __srefill1  (in libsystem_c.dylib) + 24  [0x7ff803113cc8]
+    + ! :                               1 __read_nocancel  (in libsystem_kernel.dylib) + 10  [0x7ff803221e72]
+    + ! :                                 1 ???  (in <unknown binary>)  [0x7ff892e6e9a8]
+    + ! 1 nlua_call  (in nvim) + 474  [0x102ed7b2a]
+    + !   1 nlua_push_typval  (in nvim) + 150  [0x102d9f07a]
+    + !     1 _typval_encode_lua_convert_one_value  (in nvim) + 74  [0x102ed6036]
+    + !       1 ???  (in libRosettaRuntime)  load address 0x10b66a000 + 0xc1a4  [0x10b6761a4]
+    + 1 ???  (in libluajit-5.1.2.1.1716656478.dylib)  load address 0x10be64000 + 0x23b54  [0x10be87b54]
+    + ! 1 ???  (in Rosetta Runtime Routines)  [0x10bf574a8]
+    + !   1 ???  (in runtime)  load address 0x7ff7fff29000 + 0xaaf8  [0x7ff7fff33af8]
+    + !     1 ???  (in runtime)  load address 0x7ff7fff29000 + 0xd7f0  [0x7ff7fff367f0]
+    + !       1 ???  (in runtime)  load address 0x7ff7fff29000 + 0x1eea4  [0x7ff7fff47ea4]
+    + !         1 ???  (in runtime)  load address 0x7ff7fff29000 + 0x1cd28  [0x7ff7fff45d28]
+    + !           1 ???  (in runtime)  load address 0x7ff7fff29000 + 0x4634  [0x7ff7fff2d634]
+    + 1 ???  (in libluajit-5.1.2.1.1716656478.dylib)  load address 0x10be64000 + 0x22267  [0x10be86267]
+    8555 Thread_4695710: com.apple.rosetta.exceptionserver
+      8555 ???  (in runtime)  load address 0x7ff7fff29000 + 0x4634  [0x7ff7fff2d634]
+
+Total number in stack (recursive counted multiple, when >=5):
+        7       ???  (in <unknown binary>)  [0x7ff892e6e9a8]
+        6       kevent  (in libsystem_kernel.dylib) + 10  [0x7ff8032251fe]
+        6       uv_run  (in libuv.1.dylib) + 258  [0x10bf75ef9]
+        5       inbuf_poll.llvm.885638675758020718  (in nvim) + 410  [0x102f4e716]
+
+Sort by top of stack, same collapsed (when >= 5):
+        ???  (in runtime)  load address 0x7ff7fff29000 + 0x4634  [0x7ff7fff2d634]        8557
+        ???  (in <unknown binary>)  [0x7ff892e6e9a8]        8524
+
+Binary Images:
+       0x102d99000 -        0x1030a4ffb +nvim (0) <4DD7A6FB-CD82-3BCD-BA06-68810C7B8089> /usr/local/Cellar/neovim/0.10.0/bin/nvim
+       0x10b66a000 -        0x10b6bd4cf +libRosettaRuntime (289.13) <429951A9-D91E-35D5-AAEA-EECB0A38F677> */libRosettaRuntime
+       0x10bbf3000 -        0x10bbf6fff +libmsgpack-c.2.0.0.dylib (0) <8AFF6A1A-F62F-35E9-BFD1-A8F9289C4D2C> /usr/local/Cellar/msgpack/6.0.2/lib/libmsgpack-c.2.0.0.dylib
+       0x10bc18000 -        0x10bc33ffb +libluv.1.48.0.dylib (0) <D9CCA3B8-D0FB-330C-ACF1-4328DAAE6089> /usr/local/Cellar/luv/1.48.0-2/lib/libluv.1.48.0.dylib
+       0x10bc8c000 -        0x10bc97ff3 +libvterm.0.dylib (0) <EEBA3AB1-F9E0-34B2-820B-0680AC48C277> /usr/local/Cellar/libvterm/0.3.3/lib/libvterm.0.dylib
+       0x10bcbe000 -        0x10bcc5ffb +lpeg.so (0) <C397229A-A44A-329B-A3AF-D89C193F4E35> /usr/local/Cellar/lpeg/1.1.0/lib/lua/5.1/lpeg.so
+       0x10bd16000 -        0x10bd35ff7 +libtree-sitter.0.22.dylib (0) <7FCF6FC3-2E5E-39F5-9CB4-21C977E63F9F> /usr/local/Cellar/tree-sitter/0.22.6/lib/libtree-sitter.0.22.dylib
+       0x10bd84000 -        0x10bd8bffb +libunibilium.4.dylib (0) <DCD70A27-CBEF-314C-A087-4BAEA4AAA69A> /usr/local/Cellar/unibilium/2.1.1/lib/libunibilium.4.dylib
+       0x10bda8000 -        0x10bdbffff +libintl.8.dylib (0) <62EAAE82-CC20-36E7-84E1-873459BC4E8F> /usr/local/Cellar/gettext/0.22.5/lib/libintl.8.dylib
+       0x10be64000 -        0x10becbff7 +libluajit-5.1.2.1.1716656478.dylib (0) <B08A7DEF-040B-322A-9C76-3E9FF9EDDDC2> /usr/local/Cellar/luajit/2.1.1716656478/lib/libluajit-5.1.2.1.1716656478.dylib
+       0x10bf6f000 -        0x10bf8afff +libuv.1.dylib (0) <9AC13C88-338B-34C8-8274-CD4A6E3D2FF1> /usr/local/Cellar/libuv/1.48.0/lib/libuv.1.dylib
+       0x10c1e6000 -        0x10c215ff7 +libcard.dylib (0) <9DCD05F9-0039-3C73-B835-816FED202A92> */libcard.dylib
+       0x10c45e000 -        0x10c621fff +sql_syn.o (0) <4AC1B60B-DA68-3728-8D74-FF52817CA502> */sql_syn.o
+       0x2032ec000 -        0x2033845ef  dyld (1.0.0 - 1066.10) <31E1C182-E611-3883-97A3-4334A21C90BD> /usr/lib/dyld
+    0x7ff7fff29000 -     0x7ff7fff55bcf  runtime (289.13) <15CCD9BF-9A15-3540-A1FF-3ABEA3E2CA9D> /usr/libexec/rosetta/runtime
+    0x7ff802ec4000 -     0x7ff802efeff0  libobjc.A.dylib (876) <74D69099-5548-3B3C-BE29-5B0F84C08970> /usr/lib/libobjc.A.dylib
+    0x7ff802f98000 -     0x7ff802f9bff8  libsystem_blocks.dylib (87) <3A6FA4C6-6EFE-35CF-94CD-FBFEE6835223> /usr/lib/system/libsystem_blocks.dylib
+    0x7ff802f9c000 -     0x7ff802fdcff8  libxpc.dylib (2462.141.1) <9BBB622B-62D4-3EE7-933C-69544F222DBB> /usr/lib/system/libxpc.dylib
+    0x7ff802fdd000 -     0x7ff802ff6ffe  libsystem_trace.dylib (1431.140.4) <101B76FE-DFFE-3437-903D-DE5AEA4FB606> /usr/lib/system/libsystem_trace.dylib
+    0x7ff802ff7000 -     0x7ff80308dfcf  libcorecrypto.dylib (1387.140.3) <BBC3229F-DF2A-35E9-B0E8-9C4EA446E45A> /usr/lib/system/libcorecrypto.dylib
+    0x7ff80308e000 -     0x7ff8030bafff  libsystem_malloc.dylib (425.100.7) <6A31FB1A-ACB9-3228-AF11-BAD80316DF6D> /usr/lib/system/libsystem_malloc.dylib
+    0x7ff8030bb000 -     0x7ff803102ff3  libdispatch.dylib (1415.140.2) <677AE7F7-158F-328B-85E2-8A960327856D> /usr/lib/system/libdispatch.dylib
+    0x7ff803103000 -     0x7ff803105fff  libsystem_featureflags.dylib (74) <58A83E4D-6B97-3FED-9DC3-744E48978876> /usr/lib/system/libsystem_featureflags.dylib
+    0x7ff803106000 -     0x7ff80318dff7  libsystem_c.dylib (1534.100.14) <D5B303AD-54F4-323B-BBE2-2D0F34C45649> /usr/lib/system/libsystem_c.dylib
+    0x7ff80318e000 -     0x7ff803209ff7  libc++.1.dylib (1500.65) <8B258FAF-4392-3385-A019-D80F49C5AF31> /usr/lib/libc++.1.dylib
+    0x7ff80320a000 -     0x7ff80321eff3  libc++abi.dylib (1500.65) <4DBD2A8F-9459-3D65-A0FC-B86E399B9475> /usr/lib/libc++abi.dylib
+    0x7ff80321f000 -     0x7ff803258fff  libsystem_kernel.dylib (8796.141.3) <642737CE-21CF-3D87-A7B6-7EEA2C080A7E> /usr/lib/system/libsystem_kernel.dylib
+    0x7ff803259000 -     0x7ff803264fff  libsystem_pthread.dylib (514.100.2) <3A3FA85C-F1FE-336C-BF68-924FC947ADE3> /usr/lib/system/libsystem_pthread.dylib
+    0x7ff803265000 -     0x7ff803288ff7  libdyld.dylib (1066.10) <F8204E60-E41D-36F5-81F3-EDAD68166C1D> /usr/lib/system/libdyld.dylib
+    0x7ff803289000 -     0x7ff803292fef  libsystem_platform.dylib (292.120.1.0.1) <F1798256-C6B5-335C-BBB5-7978ACF41DEB> /usr/lib/system/libsystem_platform.dylib
+    0x7ff803293000 -     0x7ff8032bdff7  libsystem_info.dylib (564.120.2) <16694AFC-0A11-3BEE-B3B6-84C718DBD550> /usr/lib/system/libsystem_info.dylib
+    0x7ff8032be000 -     0x7ff803758fff  com.apple.CoreFoundation (6.9 - 1979) <478D855C-04F6-3C1E-B658-E34AEB66490A> /System/Library/Frameworks/CoreFoundation.framework/Versions/A/CoreFoundation
+    0x7ff803759000 -     0x7ff8039d6ff6  com.apple.LaunchServices (1141.1 - 1141.1) <FAAE3E4B-C26C-316B-B577-607A61781513> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/LaunchServices.framework/Versions/A/LaunchServices
+    0x7ff803b17000 -     0x7ff803cf3fff  libBLAS.dylib (1412.120.4) <7A9FC615-3EF9-3F04-8B8B-C1E1EF6EBCB1> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBLAS.dylib
+    0x7ff803cf4000 -     0x7ff803d3cff7  com.apple.Lexicon-framework (1.0 - 105.4) <989389DE-76CF-3837-8F58-5E287E926C70> /System/Library/PrivateFrameworks/Lexicon.framework/Versions/A/Lexicon
+    0x7ff803d3d000 -     0x7ff803db3ff7  libSparse.dylib (116.100.3) <FB2A9A18-77F3-3062-90F3-C0CBF4BA9B46> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libSparse.dylib
+    0x7ff803db4000 -     0x7ff803e33fff  com.apple.SystemConfiguration (1.21 - 1.21) <3918F069-1EB7-3441-8584-85C2C2EF9912> /System/Library/Frameworks/SystemConfiguration.framework/Versions/A/SystemConfiguration
+    0x7ff803e34000 -     0x7ff803e69ff7  libCRFSuite.dylib (52) <1470AE1E-A663-37C1-AE29-D02B9E89287F> /usr/lib/libCRFSuite.dylib
+    0x7ff8040c5000 -     0x7ff804a4dff8  com.apple.Foundation (6.9 - 1979) <0CD9336A-BC14-3BC9-9FB9-58E87CA621BA> /System/Library/Frameworks/Foundation.framework/Versions/C/Foundation
+    0x7ff804a4e000 -     0x7ff804bb3ffb  com.apple.LanguageModeling (1.0 - 323.8) <04D80D62-A7A8-31E3-B236-E91948C1BE0D> /System/Library/PrivateFrameworks/LanguageModeling.framework/Versions/A/LanguageModeling
+    0x7ff80582f000 -     0x7ff805bc0ff5  com.apple.security (7.0 - 60420.140.26) <552D0543-9F03-33F2-A487-59F8E444E0C0> /System/Library/Frameworks/Security.framework/Versions/A/Security
+    0x7ff805bc1000 -     0x7ff805e51ff7  libicucore.A.dylib (70205) <89D46A46-61A3-35EC-807E-307D8BCA9BEA> /usr/lib/libicucore.A.dylib
+    0x7ff805e52000 -     0x7ff805e5cfff  libsystem_darwin.dylib (1534.100.14) <6228B0F6-AE7B-3B0C-A080-F5C174F9C70B> /usr/lib/system/libsystem_darwin.dylib
+    0x7ff805e5d000 -     0x7ff806158ff1  com.apple.CoreServices.CarbonCore (1333 - 1333) <EFD177A5-785C-3045-B502-C0692BB23AC9> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/CarbonCore.framework/Versions/A/CarbonCore
+    0x7ff806159000 -     0x7ff806198fff  com.apple.CoreServicesInternal (484 - 484) <C7F70854-A514-3D73-9395-6A5C9A3E2656> /System/Library/PrivateFrameworks/CoreServicesInternal.framework/Versions/A/CoreServicesInternal
+    0x7ff806199000 -     0x7ff8061d5ff9  com.apple.CSStore (1141.1 - 1141.1) <68232827-87BD-398F-B904-BBD51974213D> /System/Library/PrivateFrameworks/CoreServicesStore.framework/Versions/A/CoreServicesStore
+    0x7ff8061d6000 -     0x7ff806293ff8  com.apple.framework.IOKit (2.0.2 - 2022.140.2) <3589EA3F-CC5D-3FE9-99EF-E6B9E725581E> /System/Library/Frameworks/IOKit.framework/Versions/A/IOKit
+    0x7ff806294000 -     0x7ff8062a3fff  libsystem_notify.dylib (312.140.2) <765F61AC-BD8B-3A9A-97A4-3C5D3356B072> /usr/lib/system/libsystem_notify.dylib
+    0x7ff8079e0000 -     0x7ff8079e3fff  libnetwork.dylib (3100.140.3) <FB3ACD43-40AB-3D18-AD7E-19C4AFE3D050> /usr/lib/libnetwork.dylib
+    0x7ff8079e4000 -     0x7ff807d83ff4  com.apple.CFNetwork (1410.0.3 - 1410.0.3) <5AF88C82-7D7C-3F1D-934A-60C0554BABE3> /System/Library/Frameworks/CFNetwork.framework/Versions/A/CFNetwork
+    0x7ff807d84000 -     0x7ff807d9afff  libsystem_networkextension.dylib (1608.140.5) <F6021708-8EBA-3BDB-AF01-3C3BB5566791> /usr/lib/system/libsystem_networkextension.dylib
+    0x7ff807d9b000 -     0x7ff807d9bfff  libenergytrace.dylib (23) <C36690DC-53C3-3755-A7F4-6E30EE8980F0> /usr/lib/libenergytrace.dylib
+    0x7ff807d9c000 -     0x7ff807e00fca  libMobileGestalt.dylib (1185.140.1.0.1) <FCF9F7DD-FB78-3F18-9FA4-35172692C583> /usr/lib/libMobileGestalt.dylib
+    0x7ff807e01000 -     0x7ff807e17fff  libsystem_asl.dylib (395) <02AE74B4-9D82-34B6-AD10-817EF41C94A5> /usr/lib/system/libsystem_asl.dylib
+    0x7ff807e18000 -     0x7ff807e32ff9  com.apple.TCC (1.0 - 1) <7DBA9ADC-580E-310B-8E64-66BF665A9EF1> /System/Library/PrivateFrameworks/TCC.framework/Versions/A/TCC
+    0x7ff809463000 -     0x7ff80947bff7  com.apple.ProtocolBuffer (1 - 294.20.6.7.2) <F911C3F8-CA9F-38CA-A113-4528A2939900> /System/Library/PrivateFrameworks/ProtocolBuffer.framework/Versions/A/ProtocolBuffer
+    0x7ff80947c000 -     0x7ff809617fff  libsqlite3.dylib (346.1) <78CA8C81-52BB-3D81-9C56-730AD29FA3D7> /usr/lib/libsqlite3.dylib
+    0x7ff8097ca000 -     0x7ff80983cff7  com.apple.AE (944 - 944) <171AAF4E-B73E-3B88-8057-7DEA79CEFDD2> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/AE.framework/Versions/A/AE
+    0x7ff80983d000 -     0x7ff809845ff4  libdns_services.dylib (1807.140.16) <981FB488-24DE-3E90-B00A-82A6F5806A5F> /usr/lib/libdns_services.dylib
+    0x7ff809846000 -     0x7ff80984dff7  libsystem_symptoms.dylib (1732.140.3) <3D4DA2B6-1A5A-39CF-B771-03158CAB7148> /usr/lib/system/libsystem_symptoms.dylib
+    0x7ff80984e000 -     0x7ff80a483ff3  com.apple.Network (1.0 - 1) <21955249-15FC-3BD3-913B-FE9F78AB645D> /System/Library/Frameworks/Network.framework/Versions/A/Network
+    0x7ff80a484000 -     0x7ff80a4aeffc  com.apple.analyticsd (1.0 - 1) <32A49564-753B-3DB2-9991-30D76827317E> /System/Library/PrivateFrameworks/CoreAnalytics.framework/Versions/A/CoreAnalytics
+    0x7ff80a4af000 -     0x7ff80a4b0ff7  libDiagnosticMessagesClient.dylib (113) <6A29F3D4-0E01-3603-A96B-877CF0C72B01> /usr/lib/libDiagnosticMessagesClient.dylib
+    0x7ff80a4b1000 -     0x7ff80a4f1ff4  com.apple.spotlight.metadata.utilities (1.0 - 2230.27) <CC713E7F-3A96-34A1-99D4-2438D0A34570> /System/Library/PrivateFrameworks/MetadataUtilities.framework/Versions/A/MetadataUtilities
+    0x7ff80a4f2000 -     0x7ff80a587ffb  com.apple.Metadata (10.7.0 - 2230.27) <DFACF593-6CFD-3104-81B6-D2B6E03FE8E1> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/Metadata.framework/Versions/A/Metadata
+    0x7ff80a588000 -     0x7ff80a58ffff  com.apple.DiskArbitration (2.7 - 2.7) <A9A17876-352C-35BF-8791-7E80FFF68DFE> /System/Library/Frameworks/DiskArbitration.framework/Versions/A/DiskArbitration
+    0x7ff80a590000 -     0x7ff80b0a8fdf  com.apple.vImage (8.1 - 575) <5E093924-76DE-32E8-AFBE-37295BB53F5A> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vImage.framework/Versions/A/vImage
+    0x7ff80b6c0000 -     0x7ff80b6cbff1  com.apple.OpenDirectory (13.5 - 237) <9D4E0A2B-752B-35ED-89AF-0D0E2F503381> /System/Library/Frameworks/OpenDirectory.framework/Versions/A/OpenDirectory
+    0x7ff80b6cc000 -     0x7ff80b6e7ff7  com.apple.CFOpenDirectory (13.5 - 237) <90C31D71-C309-32D1-A463-301E223BD069> /System/Library/Frameworks/OpenDirectory.framework/Versions/A/Frameworks/CFOpenDirectory.framework/Versions/A/CFOpenDirectory
+    0x7ff80b6e8000 -     0x7ff80b6f4fff  com.apple.CoreServices.FSEvents (1358.100.2 - 1358.100.2) <AB33BC4F-DFC2-3689-8374-85E472927898> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/FSEvents.framework/Versions/A/FSEvents
+    0x7ff80b6f5000 -     0x7ff80b71bffa  com.apple.coreservices.SharedFileList (225 - 225) <2C245917-B7D7-33E8-B0C9-D595724A00E4> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/SharedFileList.framework/Versions/A/SharedFileList
+    0x7ff80b71c000 -     0x7ff80b71eff7  libapp_launch_measurement.dylib (17) <0BDAEB60-52B7-31D3-869B-A78376A15C84> /usr/lib/libapp_launch_measurement.dylib
+    0x7ff80b71f000 -     0x7ff80b766ff5  com.apple.CoreAutoLayout (1.0 - 29.5.1) <34B2934F-6C87-35E0-846C-3438B459E58C> /System/Library/PrivateFrameworks/CoreAutoLayout.framework/Versions/A/CoreAutoLayout
+    0x7ff80b767000 -     0x7ff80b845fff  libxml2.2.dylib (36.26) <E90E65DE-A756-3E25-9392-CAB22E09D891> /usr/lib/libxml2.2.dylib
+    0x7ff80cd7f000 -     0x7ff80cdadff3  libsystem_containermanager.dylib (477.140.2) <2C00D7F8-B2EC-3982-BE28-E37E34DAF689> /usr/lib/system/libsystem_containermanager.dylib
+    0x7ff80cdae000 -     0x7ff80cdc3fff  com.apple.IOSurface (336.60.1 - 336.60.1) <887AD259-4E00-31E6-A819-C413233B86C3> /System/Library/Frameworks/IOSurface.framework/Versions/A/IOSurface
+    0x7ff80dcda000 -     0x7ff80dcddff3  libsystem_configuration.dylib (1241.140.6) <169E510F-1F05-337C-B4A9-EFE6EB1A625F> /usr/lib/system/libsystem_configuration.dylib
+    0x7ff80dcde000 -     0x7ff80dce3ffb  libsystem_sandbox.dylib (1846.140.7) <D0C4B553-8023-3A47-BB37-1EDD2923FF50> /usr/lib/system/libsystem_sandbox.dylib
+    0x7ff80dce5000 -     0x7ff80dce8fff  com.apple.AppleSystemInfo (3.1.5 - 3.1.5) <106BE76E-F253-3DDF-A190-8F3CE1A6BFC2> /System/Library/PrivateFrameworks/AppleSystemInfo.framework/Versions/A/AppleSystemInfo
+    0x7ff80dce9000 -     0x7ff80dceafff  liblangid.dylib (137) <20805E19-F78F-3B7A-9084-F7BE5AE4A0A6> /usr/lib/liblangid.dylib
+    0x7ff80dceb000 -     0x7ff80ddcbff8  com.apple.CoreNLP (1.0 - 304) <D6D46E18-8873-31D9-8C59-BEEAF3F0FDEB> /System/Library/PrivateFrameworks/CoreNLP.framework/Versions/A/CoreNLP
+    0x7ff80ddcc000 -     0x7ff80ddd0ff8  com.apple.LinguisticData (1.0 - 483.10) <A3C15BDE-5DC4-389E-9DA0-414E35931A33> /System/Library/PrivateFrameworks/LinguisticData.framework/Versions/A/LinguisticData
+    0x7ff80ddd1000 -     0x7ff80e713fd7  libBNNS.dylib (490.141.1) <C893EEC6-C8E0-35EB-8E7E-A39F534F43BC> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libBNNS.dylib
+    0x7ff80e714000 -     0x7ff80e905ff7  libvDSP.dylib (818.100.4) <108F0A23-4CFD-396F-838D-2B7421BED97C> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libvDSP.dylib
+    0x7ff80e906000 -     0x7ff80e918ffd  com.apple.CoreEmoji (1.0 - 170.210) <B2820DCE-A58C-364B-A6A6-1D91295C1947> /System/Library/PrivateFrameworks/CoreEmoji.framework/Versions/A/CoreEmoji
+    0x7ff80e919000 -     0x7ff80e926ff7  com.apple.IOMobileFramebuffer (343.0.0 - 343.0.0) <958364C8-A761-3724-971C-E38C13212E86> /System/Library/PrivateFrameworks/IOMobileFramebuffer.framework/Versions/A/IOMobileFramebuffer
+    0x7ff80eb45000 -     0x7ff80ebd2ff7  com.apple.securityfoundation (6.0 - 55260.100.9) <973B5290-86FC-3516-832C-F0D6662259C1> /System/Library/Frameworks/SecurityFoundation.framework/Versions/A/SecurityFoundation
+    0x7ff80ebd3000 -     0x7ff80ebf5ffc  com.apple.coreservices.BackgroundTaskManagement (1.0 - 104) <88BC1275-C523-34C1-AE60-1E6436E19AC6> /System/Library/PrivateFrameworks/BackgroundTaskManagement.framework/Versions/A/BackgroundTaskManagement
+    0x7ff80ec00000 -     0x7ff80ec02ff3  libquarantine.dylib (147.120.3) <C91B58AC-230A-3C08-8B01-746773400619> /usr/lib/system/libquarantine.dylib
+    0x7ff80ec03000 -     0x7ff80ec0effb  libCheckFix.dylib (32) <721C24C4-CB49-3FF4-BD2C-3A36099A8795> /usr/lib/libCheckFix.dylib
+    0x7ff80ec0f000 -     0x7ff80ec26ff7  libcoretls.dylib (183) <8121E364-C5A1-3F24-81C0-F8CDCB6BE114> /usr/lib/libcoretls.dylib
+    0x7ff80ec27000 -     0x7ff80ec37ff3  libbsm.0.dylib (78) <E348F6C8-4C06-3F5D-B407-D4FD021529A0> /usr/lib/libbsm.0.dylib
+    0x7ff80ec38000 -     0x7ff80ec90ff7  libmecab.dylib (1026.213) <926BF169-BAAE-321E-89DE-F788A8F3A42D> /usr/lib/libmecab.dylib
+    0x7ff80ec91000 -     0x7ff80ec93ff7  libgermantok.dylib (29) <5B2142A5-8B10-3E82-8F6D-1EB8D75AE38C> /usr/lib/libgermantok.dylib
+    0x7ff80ec94000 -     0x7ff80eca9ffb  libLinearAlgebra.dylib (1412.120.4) <81429D25-CA51-3B2B-82D6-D1BEBCBBD8A6> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libLinearAlgebra.dylib
+    0x7ff80f2ce000 -     0x7ff80f39cfff  com.apple.AppleFSCompression (148.100.7 - 1.0) <10681C1E-B62B-3697-A664-1DA742C58503> /System/Library/PrivateFrameworks/AppleFSCompression.framework/Versions/A/AppleFSCompression
+    0x7ff80f39d000 -     0x7ff80f3abfff  libbz2.1.0.dylib (45) <4298DD48-E5D1-377A-AA16-2FF15C138AB9> /usr/lib/libbz2.1.0.dylib
+    0x7ff80f3ac000 -     0x7ff80f3b1fff  libsystem_coreservices.dylib (144) <E9FEAF89-6630-340A-83EA-4F680E99D551> /usr/lib/system/libsystem_coreservices.dylib
+    0x7ff80f3b2000 -     0x7ff80f3deff7  com.apple.CoreServices.OSServices (1141.1 - 1141.1) <BD90FDF6-2A6D-3375-B123-034722B94FCA> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/OSServices.framework/Versions/A/OSServices
+    0x7ff80f679000 -     0x7ff80f68bff7  libz.1.dylib (83) <C972E940-80D0-3EE2-80B5-D8D54D93B812> /usr/lib/libz.1.dylib
+    0x7ff80f68c000 -     0x7ff80f6f6ff7  libsystem_m.dylib (3226.100.4) <21B7E7A4-75C9-35C8-963E-501CC93D1184> /usr/lib/system/libsystem_m.dylib
+    0x7ff80f6f7000 -     0x7ff80f6f7ff3  libcharset.1.dylib (64) <AA2B10ED-83F1-3F64-84AD-8C9FF64F1F73> /usr/lib/libcharset.1.dylib
+    0x7ff80f6f8000 -     0x7ff80f6fcff7  libmacho.dylib (1005) <285C2D52-53B9-38ED-8C4E-5A1376B17653> /usr/lib/system/libmacho.dylib
+    0x7ff80f6fd000 -     0x7ff80f718fff  libkxld.dylib (8796.141.3) <67321D45-E549-37F4-9954-80313B9DCB4D> /usr/lib/system/libkxld.dylib
+    0x7ff80f719000 -     0x7ff80f724ff7  libcommonCrypto.dylib (600016.100.4) <F6C34938-8A0C-3A6F-BA82-42A2F8356726> /usr/lib/system/libcommonCrypto.dylib
+    0x7ff80f725000 -     0x7ff80f72fff7  libunwind.dylib (1500.26) <B5C7BA91-8AAB-35AF-AB88-BE4B2484B3DE> /usr/lib/system/libunwind.dylib
+    0x7ff80f730000 -     0x7ff80f737ff7  liboah.dylib (289.13) <1962197C-50D0-39B4-A352-9A74E69C08BC> /usr/lib/liboah.dylib
+    0x7ff80f738000 -     0x7ff80f745fff  libcopyfile.dylib (191.100.3) <890413F4-171F-389B-83A9-817F1E14D3C2> /usr/lib/system/libcopyfile.dylib
+    0x7ff80f746000 -     0x7ff80f74dfff  libcompiler_rt.dylib (103.1) <8F9BA682-9E86-3EA7-8467-1DD347F3D9BE> /usr/lib/system/libcompiler_rt.dylib
+    0x7ff80f74e000 -     0x7ff80f752ff7  libsystem_collections.dylib (1534.100.14) <DD2D6B66-1DDA-302C-B3CB-07A651FF8A73> /usr/lib/system/libsystem_collections.dylib
+    0x7ff80f753000 -     0x7ff80f755ff7  libsystem_secinit.dylib (120.100.7) <75D9E415-C864-34DE-B723-F39458E0BFFF> /usr/lib/system/libsystem_secinit.dylib
+    0x7ff80f756000 -     0x7ff80f757fff  libremovefile.dylib (68) <6D83C38A-CFBA-39A1-83F3-CB2E9649768B> /usr/lib/system/libremovefile.dylib
+    0x7ff80f758000 -     0x7ff80f758ffb  libkeymgr.dylib (31) <6BDB31B8-598C-37CD-946A-FAA203FA08A3> /usr/lib/system/libkeymgr.dylib
+    0x7ff80f759000 -     0x7ff80f761ff3  libsystem_dnssd.dylib (1807.140.16) <AC9362E5-8F3D-30F3-9912-C4CD019D4216> /usr/lib/system/libsystem_dnssd.dylib
+    0x7ff80f762000 -     0x7ff80f767ff7  libcache.dylib (92) <3569DB66-CEA8-37FC-9BDE-091F07CA7895> /usr/lib/system/libcache.dylib
+    0x7ff80f768000 -     0x7ff80f769fff  libSystem.B.dylib (1319.100.3) <417D430D-9D8D-3D77-9BEE-C1D8C89DB1A8> /usr/lib/libSystem.B.dylib
+    0x7ff80f76a000 -     0x7ff80f76dffb  libfakelink.dylib (5) <E7056019-6FAF-36CA-87A9-A88DD727D108> /usr/lib/libfakelink.dylib
+    0x7ff80f76e000 -     0x7ff80f76eff7  com.apple.SoftLinking (1.0 - 46) <B7C96425-76CD-3281-BE03-A582D97BA27D> /System/Library/PrivateFrameworks/SoftLinking.framework/Versions/A/SoftLinking
+    0x7ff80f76f000 -     0x7ff80f7a3ff7  libpcap.A.dylib (116.140.1) <4ECD27D9-5EF6-3EFA-A559-31D350CB02B8> /usr/lib/libpcap.A.dylib
+    0x7ff80f7a4000 -     0x7ff80f895ff7  libiconv.2.dylib (64) <757EA503-9506-39CF-8357-A2F99AB99DC7> /usr/lib/libiconv.2.dylib
+    0x7ff80f896000 -     0x7ff80f8a6ffb  libcmph.dylib (8) <1EB27551-AFC6-303A-B4FF-CE4D2B8F73FC> /usr/lib/libcmph.dylib
+    0x7ff80f8a7000 -     0x7ff80f92efff  libarchive.2.dylib (113.100.2) <D81D5697-F85B-3EFB-AFA0-EF6F3D475E20> /usr/lib/libarchive.2.dylib
+    0x7ff80f92f000 -     0x7ff80f994fff  com.apple.SearchKit (1.4.1 - 1.4.1) <2B460BD4-9E60-32F0-B805-E99323A9DE89> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/SearchKit.framework/Versions/A/SearchKit
+    0x7ff80f995000 -     0x7ff80f996ff3  libThaiTokenizer.dylib (11) <4BE6CFE8-727E-38F6-AA35-004DEE9058CE> /usr/lib/libThaiTokenizer.dylib
+    0x7ff80f997000 -     0x7ff80f9b8ff3  com.apple.applesauce (1.0 - 16.41.2) <A081434F-EB64-3A9C-A0F5-59E68AEDDDD3> /System/Library/PrivateFrameworks/AppleSauce.framework/Versions/A/AppleSauce
+    0x7ff80f9b9000 -     0x7ff80f9d3fff  libapple_nghttp2.dylib (13) <CADFC13D-3CB5-34B9-A835-1708C57B27D3> /usr/lib/libapple_nghttp2.dylib
+    0x7ff80f9d4000 -     0x7ff80f9e6fff  libSparseBLAS.dylib (1412.120.4) <4044AF62-1030-3021-A70E-76EC823FF920> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libSparseBLAS.dylib
+    0x7ff80f9e9000 -     0x7ff80f9eefff  libpam.2.dylib (29.60.2) <889F406B-3307-3A4E-861E-7004E0ED8415> /usr/lib/libpam.2.dylib
+    0x7ff80f9ef000 -     0x7ff80fac6fc7  libcompression.dylib (148) <3C910867-FB50-3D13-AC37-B9302342581C> /usr/lib/libcompression.dylib
+    0x7ff80fac7000 -     0x7ff80faccff3  libQuadrature.dylib (7) <4CCED9C8-456D-3A52-8DDD-A6AB30565685> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libQuadrature.dylib
+    0x7ff80facd000 -     0x7ff810e64fff  libLAPACK.dylib (1412.120.4) <858346AA-9DAF-3029-B7B5-3E166FE58655> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libLAPACK.dylib
+    0x7ff810e65000 -     0x7ff810eb3ffe  com.apple.DictionaryServices (1.2 - 355) <9440C300-CE1B-3C32-B606-8846436E8B55> /System/Library/Frameworks/CoreServices.framework/Versions/A/Frameworks/DictionaryServices.framework/Versions/A/DictionaryServices
+    0x7ff810eb4000 -     0x7ff810eccff3  liblzma.5.dylib (18) <77FF8999-1AB6-326B-90EE-F96C63299803> /usr/lib/liblzma.5.dylib
+    0x7ff810ecd000 -     0x7ff810ecefff  libcoretls_cfhelpers.dylib (183) <413E2284-309F-39E5-8A2B-A765B1336136> /usr/lib/libcoretls_cfhelpers.dylib
+    0x7ff810ecf000 -     0x7ff810f3fff7  com.apple.APFS (2142.140.9 - 2142.140.9) <8DCA2749-8F52-3AE6-9F02-FE954D4B6E8C> /System/Library/PrivateFrameworks/APFS.framework/Versions/A/APFS
+    0x7ff810f40000 -     0x7ff810f4dff7  libxar.1.dylib (498) <C3334673-8B25-33B8-BE34-29022C4601DB> /usr/lib/libxar.1.dylib
+    0x7ff810f4e000 -     0x7ff810f51fff  libutil.dylib (64) <3368AAEE-D270-3060-AFF0-B998900682BC> /usr/lib/libutil.dylib
+    0x7ff810f52000 -     0x7ff810f7afff  libxslt.1.dylib (19.10) <89432FEE-3404-3F9F-B672-18F59860C531> /usr/lib/libxslt.1.dylib
+    0x7ff810f82000 -     0x7ff811126fc7  libvMisc.dylib (818.100.4) <AA1F2572-467A-31BA-B3A5-596E358C069B> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/libvMisc.dylib
+    0x7ff8114d9000 -     0x7ff8114e1ff7  libheimdal-asn1.dylib (660.140.3) <355773D6-B0CD-3AA1-BCA6-92FE5750DF05> /usr/lib/libheimdal-asn1.dylib
+    0x7ff812fe7000 -     0x7ff813470ff4  libswiftCore.dylib (5.8.2 - 5.8.2.0.1) <087DADAD-D590-35EA-AC4D-7B0E966804EB> /usr/lib/swift/libswiftCore.dylib
+    0x7ff814e9d000 -     0x7ff814f98ff7  com.apple.combine (1.0 - 310) <73CBB017-DD7D-3A1F-92DC-287E510F1D08> /System/Library/Frameworks/Combine.framework/Versions/A/Combine
+    0x7ff816fd7000 -     0x7ff816fd7fff  com.apple.Accelerate.vecLib (3.11 - vecLib 3.11) <080C2C2C-56EF-348D-957C-BEF8C53861ED> /System/Library/Frameworks/Accelerate.framework/Versions/A/Frameworks/vecLib.framework/Versions/A/vecLib
+    0x7ff817004000 -     0x7ff817004fff  com.apple.CoreServices (1228 - 1228) <DCAE156F-B6F8-3A38-8EE1-A861FD23D44F> /System/Library/Frameworks/CoreServices.framework/Versions/A/CoreServices
+    0x7ff8172b5000 -     0x7ff8172b5fff  com.apple.Accelerate (1.11 - Accelerate 1.11) <0C602A59-2132-3641-9E20-3F950A49C98E> /System/Library/Frameworks/Accelerate.framework/Versions/A/Accelerate
+    0x7ff818856000 -     0x7ff81886afff  libswiftDispatch.dylib (20) <AAA01CAE-6962-37ED-B1E2-ECBD019BA9AD> /usr/lib/swift/libswiftDispatch.dylib
+    0x7ff81adbb000 -     0x7ff81adbeff5  libswiftObjectiveC.dylib (6) <1149747E-4884-3E1E-ADEA-D70817AC802D> /usr/lib/swift/libswiftObjectiveC.dylib
+    0x7ff81adbf000 -     0x7ff81add6ff3  libswiftos.dylib (1034) <22B5D3C9-89F7-3A5A-9C61-20CBCD9643CE> /usr/lib/swift/libswiftos.dylib
+    0x7ff905d03000 -     0x7ff905d0cfff  libswiftDarwin.dylib (??? - 5.8.2.0.1) <97729C7D-06D2-38B1-AED9-2B6608F20653> /usr/lib/swift/libswiftDarwin.dylib
+    0x7ff907c22000 -     0x7ff907c33ff6  libmis.dylib (356.100.14) <DE5F2603-F4B0-3C27-A1DB-9EDE0BFF290F> /usr/lib/libmis.dylib
+    0x7ff907c40000 -     0x7ff907c46fff  libswiftCoreFoundation.dylib (1960) <EEC00F25-897B-379B-BE1C-3ECB12362652> /usr/lib/swift/libswiftCoreFoundation.dylib
+    0x7ff907c51000 -     0x7ff907c5afff  libswiftXPC.dylib (6) <D192DDF6-0563-3417-A82E-238C9E4F6A61> /usr/lib/swift/libswiftXPC.dylib
+    0x7ff907c5c000 -     0x7ff907c5cffb  libswiftIOKit.dylib (1) <15F56AB5-50DD-3081-81C1-161660355B69> /usr/lib/swift/libswiftIOKit.dylib
+    0x7ff9164f5000 -     0x7ff9164fcffc  com.apple.MobileSystemServices (1.0 - 1) <B14EEDFE-7EAC-36E1-9584-A3C485ED6C72> /System/Library/PrivateFrameworks/MobileSystemServices.framework/Versions/A/MobileSystemServices
+    0x7ffa1223e000 -     0x7ffa12241ff7  com.apple.ConfigProfileHelper (15.3 - 1531) <352803E1-5AD2-3F79-8FCD-F2CB70EE8C39> /System/Library/PrivateFrameworks/ConfigProfileHelper.framework/Versions/A/ConfigProfileHelper
+    0x7ffb0488a000 -     0x7ffb04899ffa  com.apple.private.AppleMobileFileIntegrity-fmk (1.0 - 1) <FFA054F1-3D58-3C1D-B961-192C130FE930> /System/Library/PrivateFrameworks/AppleMobileFileIntegrity.framework/Versions/A/AppleMobileFileIntegrity
+    0x7ffb0d93c000 -     0x7ffb0da23ff2  com.apple.InstalledContentLibrary (1.0 - 1.0) <C0BF2506-E5E6-30DC-B240-54CD22FDB990> /System/Library/PrivateFrameworks/InstalledContentLibrary.framework/Versions/A/InstalledContentLibrary
+    0x7ffb0e9c5000 -     0x7ffb0ec6ffff  com.apple.MIL (4.28 - 4.28.4) <49AFEC0E-9A77-3CE2-9E37-21B380526F09> /System/Library/PrivateFrameworks/MIL.framework/Versions/A/MIL
+    0x7ffb0f78b000 -     0x7ffb0f7b7ff5  com.apple.MessageSecurity (1.0 - 38.120.2) <F5F48A9F-C89F-30E7-B89D-07FF524D6B50> /System/Library/PrivateFrameworks/MessageSecurity.framework/Versions/A/MessageSecurity
+    0x7ffb2268c000 -     0x7ffb2269bff4  libCoreEntitlements.dylib (38.100.9) <9D89DCE4-A71E-3EA4-A5A4-720AD47566FB> /usr/lib/libCoreEntitlements.dylib
+    0x7ffb227ce000 -     0x7ffb227d9ffc  libTLE.dylib (38.100.9) <63662ACC-E83D-315E-B58F-4C5624CDE110> /usr/lib/libTLE.dylib
+    0x7ffc0378d000 -     0x7ffc037d7ff7  libswift_Concurrency.dylib (5.8.2 - 5.8.2.0.1) <6EEB8AEF-5CB1-3ABE-9245-E0CF5CE0A93F> /usr/lib/swift/libswift_Concurrency.dylib
+    0x7ffc03813000 -     0x7ffc038c9ff7  libswift_RegexParser.dylib (??? - 5.8.2.0.1) <C15F8DA7-BF48-3987-BF2F-6E9CD1E54D58> /usr/lib/swift/libswift_RegexParser.dylib
+    0x7ffc038ca000 -     0x7ffc03959fff  libswift_StringProcessing.dylib (??? - 5.8.2.0.1) <4FB61F11-67CC-3ED9-860E-B9E9BF463D0D> /usr/lib/swift/libswift_StringProcessing.dylib

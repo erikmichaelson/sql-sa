@@ -1,0 +1,36 @@
+                    + DAG.NEW_TABLE > cust_level (CTE) [cll_test.sql:87]
+                    |  + count(*) as num_leads ... from etl.leads .. group by cus_ssn
+                    |
+                    + DAG.NEW_TABLE  [cll_test.sql:92]
+                    |  + c.cust_ssn ... from etl.leads l left join cust_level c on c.cust_ssn = l.cust_ssn
+                    |
+    select cust_nm, num_leads
+    from dag.new_table
+
+///                        offset
+///                       points to
+/// ┌───────────────────┐ start of  ┌───────┐       Different
+/// │                   │   data    │       │     ArrayData may
+/// │ArrayData {        │           │....   │     also refers to
+/// │  data_type: ...   │   ─ ─ ─ ─▶│1234   │  ┌ ─  the same
+/// │  offset: ... ─ ─ ─│─ ┘        │4372   │      underlying
+/// │  len: ...    ─ ─ ─│─ ┐        │4888   │  │     buffer with different offset/len
+/// │  buffers: [       │           │5882   │◀─
+/// │    ...            │  │        │4323   │
+/// │  ]                │   ─ ─ ─ ─▶│4859   │
+/// │  child_data: [    │           │....   │
+/// │    ...            │           │       │
+/// │  ]                │           └───────┘
+/// │}                  │
+/// │                   │            Shared Buffer uses
+/// │               │   │            bytes::Bytes to hold
+/// └───────────────────┘            actual data values
+///           ┌ ─ ─ ┘
+///
+///           ▼
+/// ┌───────────────────┐
+/// │ArrayData {        │
+/// │  ...              │
+/// │}                  │
+/// │                   │
+/// └───────────────────┘

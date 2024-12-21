@@ -24,9 +24,7 @@ function multiline_highlight(start_row, start_col, end_row, end_col)
     end
 end
 
-function get_visual_selection()
-  local s_start = vim.fn.getpos("'<")
-  local s_end = vim.fn.getpos("'>")
+function get_text(s_start, s_end)
   local n_lines = math.abs(s_end[2] - s_start[2]) + 1
   local lines = vim.api.nvim_buf_get_lines(0, s_start[2] - 1, s_end[2], false)
   lines[1] = string.sub(lines[1], s_start[3], -1)
@@ -36,6 +34,12 @@ function get_visual_selection()
     lines[n_lines] = string.sub(lines[n_lines], 1, s_end[3])
   end
   return table.concat(lines, '\n')
+end
+
+function get_visual_selection()
+  local s_start = vim.fn.getpos("'<")
+  local s_end = vim.fn.getpos("'>")
+  return get_text(s_start, s_end)
 end
 
 -------  CARD  -------
@@ -92,12 +96,12 @@ source = table.concat(source, '\n')
 r = card.card_runtime_init_c(source)
 
 -- changeset will hold all of the pending changes between the client and the card_runtime
-changeset = {}
-api.nvim_buf_attach(0, false, {
-    on_bytes = function(...)
-        changeset.insert(events, {})
-    end
-})
+--changeset = {}
+--api.nvim_buf_attach(0, false, {
+--    on_bytes = function(...)
+--        changeset.insert(events, {})
+--    end
+--})
 
 function card_sync_runtime()
     local tsie = ffi.new('TSInputEdit[?]',#changeset)
@@ -270,6 +274,15 @@ end
 function highlight_card_references_to_column(column_name, row, col)
     api.nvim_buf_clear_namespace(0, cns, 0, -1)
     vim.cmd('syntax off')
+    rf_cursor = card.references_from_cursor_c(r, column_name, row_col)
+    while card.next_reference_to_column_c(rf_cursor) do
+        api.nvim_buf_add_highlights(0, cns, 'WildMenu'
+            ,tonumber(rf_cursor.points[0].row)
+            ,tonumber(rf_cursor.points[0].column)
+            ,tonumber(rf_cursor.points[1].row)
+            ,tonumber(rf_cursor.points[1].column)
+        )
+    end
     local points = ffi.new("cd_nodelist[1]")
     points = card.references_to_column_c(r, column_name, row, col)
     for p = 0, (points.size - 1) do
@@ -334,6 +347,18 @@ function card_jump_to_column_definition()
     end
 end
 
+function card_run_context()
+    -- serves 2 purposes: shows the user *what* code ran and we can get the code with get_extmarks
+    highlight_card_context_ddl()
+    -- since the above function calls card_reset we know this will only ever have two marks
+    local res = api.nvim_buf_get_extmarks(0, cns, 0, -1, {})
+    vim.cmd('call cursor('..(res[1][2]+1)..','..res[1][3]..')')
+    -- dumbest roundtrip workaround
+    vim.cmd('execute "normal! v" ')
+    vim.cmd('call cursor('..(res[#res][2]+1)..','..res[#res][3]..')')
+    vim.cmd("'<,'>DB duckdb:")
+end
+
 function card_reset()
     api.nvim_buf_clear_namespace(0, cns, 0, -1)
     vim.cmd('syntax on')
@@ -368,5 +393,6 @@ vim.keymap.set('n', '<Leader>r', ':lua card_reset()<CR>')
 -- query shortcuts
 vim.keymap.set('n', '<Leader>e', ":normal V<CR> :'<,'>%DB duckdb:///<CR>")
 vim.keymap.set('v', '<Leader>e', ":'<,'>%DB duckdb:///<CR>")
+vim.keymap.set('n', '<Leader><Leader>', ':lua card_run_context()<CR>')
 
 print "CARD loaded"
